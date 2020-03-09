@@ -15,6 +15,14 @@ const (
 	sesKeyLogin sesKey = iota
 )
 
+type customer_struct struct {
+	customer_name string
+	customer_id   string
+	customer_type string
+}
+
+var customer_map = make(map[string]customer_struct)
+
 var cookieStore = sessions.NewCookieStore([]byte("secret"))
 
 const cookieName = "MyCookie"
@@ -22,8 +30,9 @@ const cookieName = "MyCookie"
 type sesKey int
 
 type ViewData struct {
-	Title   string
-	Message string
+	Title     string
+	Message   string
+	Customers map[string]customer_struct
 }
 
 func productsHandler(w http.ResponseWriter, r *http.Request) {
@@ -36,32 +45,64 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Index Page")
 }
 
+//examples
 func user(w http.ResponseWriter, r *http.Request) {
-
 	name := r.URL.Query().Get("name")
 	age := r.URL.Query().Get("age")
 	fmt.Fprintf(w, "Имя: %s Возраст: %s", name, age)
 }
 
+func get_customer(w http.ResponseWriter, r *http.Request) {
+	customer_id := r.URL.Query().Get("customer_id")
+	fmt.Fprintf(w, "customer_id: %s customer_name: %s", customer_map[customer_id].customer_id,
+		customer_map[customer_id].customer_name)
+}
+
+//examples
 func users(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "user.html")
 }
 
+//examples
 func postform(w http.ResponseWriter, r *http.Request) {
-
 	name := r.FormValue("username")
 	age := r.FormValue("userage")
-
 	fmt.Fprintf(w, "Имя: %s Возраст: %s", name, age)
 }
 
-func templates(w http.ResponseWriter, r *http.Request) {
+func add_change_customer(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "add_change_customer.html")
+}
 
+func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
+	customer_data := customer_struct{
+		customer_name: r.FormValue("customer_name"),
+		customer_id:   r.FormValue("customer_id"),
+		customer_type: r.FormValue("customer_type"),
+	}
+
+	customer_map[r.FormValue("customer_id")] = customer_data
+
+	fmt.Fprintf(w, "Имя: %s Идентификатор: %s", customer_data.customer_name, customer_data.customer_id)
+}
+
+//examples
+func templates(w http.ResponseWriter, r *http.Request) {
 	data := ViewData{
 		Title:   "World Cup",
 		Message: "FIFA will never regret it",
 	}
 	tmpl, _ := template.ParseFiles("templates/templates.html")
+	tmpl.Execute(w, data)
+}
+
+func list_customer(w http.ResponseWriter, r *http.Request) {
+	data := ViewData{
+		Title:     "list customer",
+		Message:   "list customer below",
+		Customers: customer_map,
+	}
+	tmpl, _ := template.ParseFiles("templates/list_customer.html")
 	tmpl.Execute(w, data)
 }
 
@@ -122,10 +163,17 @@ func main() {
 	//localhost:8181/user?name=Sam&age=21
 	router.HandleFunc("/user", user)
 
+	//localhost:8181/get_customer?customer_id="123"
+	router.HandleFunc("/get_customer", get_customer)
+
 	router.HandleFunc("/users", users)
 	router.HandleFunc("/postform", postform)
 
+	router.HandleFunc("/add_change_customer", add_change_customer)
+	router.HandleFunc("/postform_add_change_customer", postform_add_change_customer)
+
 	router.HandleFunc("/templates", templates)
+	router.HandleFunc("/list_customer", list_customer)
 
 	router.HandleFunc("/mainpage", mainpage)
 
@@ -140,8 +188,8 @@ func main() {
 	flag.Parse()
 
 	//router.Handle("/js/", http.FileServer(http.Dir("./js/")))
-	//router.PathPrefix("/js/").Handler(http.StripPrefix("/js/", http.FileServer(http.Dir("/login/js/"))))
-	router.PathPrefix("/js/").Handler(http.StripPrefix("/js/", http.FileServer(http.Dir("./js/"))))
+	//Работает
+	router.PathPrefix("/js").Handler(http.StripPrefix("/js", http.FileServer(http.Dir("./js/"))))
 
 	http.Handle("/", router)
 
