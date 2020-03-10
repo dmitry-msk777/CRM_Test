@@ -10,9 +10,26 @@
                 <li><a href="/list_customer">Custom List</a></li>
 				<li><a href="/add_change_customer">Add Custom</a></li>
             </ul>
+		<label>Find Customer </label><br>
+        <input type="number" name="customer_id" id="customer_id" /><br><br>
+		<input type="button" value="Find customer" id="MyElem">
+		
         </div>
     </div>
 
+		<script>
+			function say_hi() {
+			var fname = document.getElementById('customer_id').value;
+			//var html = 'Hello <b>' + fname + '</b> ' + lname;
+	 
+			//alert(fname);
+			// Разметка <input type="button" value="go" onclick="location.href='abrokazyabra.html'" />
+			document.location.href = "get_customer?customer_id="+fname;
+			}
+	 
+			document.getElementById('MyElem').addEventListener('click', say_hi);
+		</script>
+	
 </body>
 
 {{ end }}

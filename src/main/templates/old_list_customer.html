@@ -10,22 +10,9 @@
         <h1>{{ .Title}}</h1>
         <p>{{ .Message}}</p>
 		<ul>
-		
-		<table border="1">
-		<tr>
-		<th>key</th>
-		<th>value</th>
-		</tr>
-            {{range $key, $value := .Customers}}
-			
-			   <tr>
-				<td>  <a href="list_customer">{{ $key }}</a> </td>
-				<td> {{ $value }} </td>
-			  </tr>
-			
-	
+            {{range .Customers}}
+                <li><b>{{ . }}</b></li>
             {{end}}
-		 </table>
         </ul>
     </body>
 </html>
