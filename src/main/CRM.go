@@ -98,7 +98,9 @@ func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
 
 	customer_map[r.FormValue("customer_id")] = customer_data
 
-	fmt.Fprintf(w, "Имя: %s Идентификатор: %s", customer_data.customer_name, customer_data.customer_id)
+	//fmt.Fprintf(w, "Имя: %s Идентификатор: %s", customer_data.customer_name, customer_data.customer_id)
+
+	http.Redirect(w, r, "/", 302)
 }
 
 //examples
@@ -126,8 +128,6 @@ func list_customer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tmpl.ExecuteTemplate(w, "list_customer", data)
-
-	//http.Redirect(w, r, "/mail", 302)
 }
 
 func mainpage(w http.ResponseWriter, r *http.Request) {
