@@ -1,11 +1,13 @@
+{{ define "add_change_customer" }}
 <!DOCTYPE html>
 <html>
     <head>
         <meta charset="UTF-8">
-        <title>Карточка клиента</title>
+        <title>Customer card</title>
     </head>
     <body>
-        <h2>Карточка клиента</h2>
+	{{ template "header" }}
+        <h2>Customer card</h2>
         <form method="POST" action="postform_add_change_customer">
             <label>Имя клиента</label><br>
             <input type="text" name="customer_name" /><br><br>
@@ -20,3 +22,4 @@
         </form>
     </body>
 </html>
+{{ end }}

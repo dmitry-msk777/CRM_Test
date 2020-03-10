@@ -42,7 +42,14 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, response)
 }
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "Index Page")
+
+	t, err := template.ParseFiles("templates/main_page.html", "templates/header.html")
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	t.ExecuteTemplate(w, "main_page", customer_map)
 }
 
 //examples
@@ -71,7 +78,15 @@ func postform(w http.ResponseWriter, r *http.Request) {
 }
 
 func add_change_customer(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "add_change_customer.html")
+
+	tmpl, err := template.ParseFiles("templates/add_change_customer.html", "templates/header.html")
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	tmpl.ExecuteTemplate(w, "add_change_customer", nil)
+
 }
 
 func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
@@ -97,13 +112,22 @@ func templates(w http.ResponseWriter, r *http.Request) {
 }
 
 func list_customer(w http.ResponseWriter, r *http.Request) {
+
+	tmpl, err := template.ParseFiles("templates/list_customer.html", "templates/header.html")
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
 	data := ViewData{
 		Title:     "list customer",
 		Message:   "list customer below",
 		Customers: customer_map,
 	}
-	tmpl, _ := template.ParseFiles("templates/list_customer.html")
-	tmpl.Execute(w, data)
+
+	tmpl.ExecuteTemplate(w, "list_customer", data)
+
+	//http.Redirect(w, r, "/mail", 302)
 }
 
 func mainpage(w http.ResponseWriter, r *http.Request) {
