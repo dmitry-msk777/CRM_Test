@@ -1,0 +1,19 @@
+<html>
+<head>
+    <script src="js/jquery-3.4.1.min.js"></script>
+    <script src="js/js.cookie.min.js"></script>
+    <script src="js/jquery.md5.min.js"></script>
+</head>
+<body>
+    <p>Логин: <input id="login" type="text" /></p>
+    <p>Пароль: <input id="pwd" type="password" /></p>
+    <button id="button">Войти</button>
+    <script>
+        $('#button').on('click', function () {
+            var auth = $.MD5($("#login").val()+$("#pwd").val());
+            Cookies.set("auth", auth);
+            location.reload();
+        });
+     </script>
+</body>
+</html>

@@ -134,7 +134,7 @@ func mainpage(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Index Page")
 }
 
-func login(w http.ResponseWriter, r *http.Request) {
+func login_old(w http.ResponseWriter, r *http.Request) {
 	ses, err := cookieStore.Get(r, cookieName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -147,6 +147,17 @@ func login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+}
+
+func login(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "./login/login.html")
+}
+
+func loginPost(w http.ResponseWriter, r *http.Request) {
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+
+	fmt.Fprint(w, username+" "+password)
 }
 
 func loginind(w http.ResponseWriter, r *http.Request) {
@@ -202,6 +213,7 @@ func main() {
 	router.HandleFunc("/mainpage", mainpage)
 
 	router.HandleFunc("/login", login)
+	router.HandleFunc("/loginPost", loginPost)
 
 	router.HandleFunc("/loginind", loginind)
 
