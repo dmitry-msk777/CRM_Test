@@ -5,6 +5,13 @@
 	{{ template "header" }}
 
     <div class="container">
+	
+		 {{if .User}}
+            <label>Current Users {{ .User}} </label><br>
+		{{else}}
+			<li><a href="/login">login</a></li>
+         {{end}}
+	
         <div class="collapse navbar-collapse">
             <ul class="nav navbar-nav">
                 <li><a href="/list_customer">Custom List</a></li>

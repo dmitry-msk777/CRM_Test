@@ -1,18 +1,15 @@
 package main
 
 import (
-	"encoding/gob"
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"html/template"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
-)
-
-const (
-	sesKeyLogin sesKey = iota
+	//"github.com/gorilla/sessions"
 )
 
 type customer_struct struct {
@@ -23,16 +20,22 @@ type customer_struct struct {
 
 var customer_map = make(map[string]customer_struct)
 
-var cookieStore = sessions.NewCookieStore([]byte("secret"))
+var cookiemap = make(map[string]string)
+var users = make(map[string]string)
 
-const cookieName = "MyCookie"
-
-type sesKey int
+const cookieName = "CookieCRM"
 
 type ViewData struct {
 	Title     string
 	Message   string
+	User      string
 	Customers map[string]customer_struct
+}
+
+func GenerateId() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)
 }
 
 func productsHandler(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +52,25 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.ExecuteTemplate(w, "main_page", customer_map)
+	nameUserFromCookieStruc := ""
+
+	CookieGet, _ := r.Cookie(cookieName)
+	if CookieGet != nil {
+		nameUserFromCookie, flagmap := cookiemap[CookieGet.Value]
+		if flagmap != false {
+			nameUserFromCookieStruc = nameUserFromCookie
+		}
+	}
+
+	data := ViewData{
+		Title:     "list customer",
+		Message:   "list customer below",
+		User:      nameUserFromCookieStruc,
+		Customers: customer_map,
+	}
+
+	// t.ExecuteTemplate(w, "main_page", customer_map)
+	t.ExecuteTemplate(w, "main_page", data)
 }
 
 //examples
@@ -65,10 +86,10 @@ func get_customer(w http.ResponseWriter, r *http.Request) {
 		customer_map[customer_id].customer_name)
 }
 
-//examples
-func users(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "user.html")
-}
+// //examples
+// func users(w http.ResponseWriter, r *http.Request) {
+// 	http.ServeFile(w, r, "user.html")
+// }
 
 //examples
 func postform(w http.ResponseWriter, r *http.Request) {
@@ -108,6 +129,7 @@ func templates(w http.ResponseWriter, r *http.Request) {
 	data := ViewData{
 		Title:   "World Cup",
 		Message: "FIFA will never regret it",
+		User:    "admin",
 	}
 	tmpl, _ := template.ParseFiles("templates/templates.html")
 	tmpl.Execute(w, data)
@@ -134,21 +156,6 @@ func mainpage(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Index Page")
 }
 
-func login_old(w http.ResponseWriter, r *http.Request) {
-	ses, err := cookieStore.Get(r, cookieName)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	ses.Values[sesKeyLogin] = "user"
-	err = cookieStore.Save(r, w, ses)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-}
-
 func login(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "./login/login.html")
 }
@@ -157,36 +164,36 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 
-	fmt.Fprint(w, username+" "+password)
-}
-
-func loginind(w http.ResponseWriter, r *http.Request) {
-	ses, err := cookieStore.Get(r, cookieName)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	user_password, flagusers := users[username]
+	if flagusers == true {
+		if user_password != password {
+			fmt.Fprint(w, "error auth password")
+			return
+		}
+	} else {
+		fmt.Fprint(w, "error auth user not find")
 		return
 	}
 
-	login, ok := ses.Values[sesKeyLogin].(string)
-	if !ok {
-		login = "anonymous"
+	idcookie := GenerateId()
+
+	cookiemap[idcookie] = username
+
+	cookieHttp := &http.Cookie{
+		Name:    cookieName,
+		Value:   idcookie,
+		Expires: time.Now().Add(6 * time.Minute),
 	}
 
-	w.Write([]byte("you are " + login))
-}
+	http.SetCookie(w, cookieHttp)
 
-func logintest(w http.ResponseWriter, r *http.Request) {
-	url := "login/login.html" //Страница входа
-	if len(r.Header["Cookie"]) != 0 && r.Header["Cookie"][0] == "auth=your_MD5_cookies" {
-		url = "login/index.html" //Страница после успешной авторизации
-	}
-	t, _ := template.ParseFiles(url)
-	t.Execute(w, "")
+	//fmt.Fprint(w, username+" "+password)
+	http.Redirect(w, r, "/", 302)
 }
 
 func main() {
 
-	gob.Register(sesKey(0))
+	users["admin"] = "admin"
 
 	router := mux.NewRouter()
 
@@ -201,7 +208,7 @@ func main() {
 	//localhost:8181/get_customer?customer_id="123"
 	router.HandleFunc("/get_customer", get_customer)
 
-	router.HandleFunc("/users", users)
+	// router.HandleFunc("/users", users)
 	router.HandleFunc("/postform", postform)
 
 	router.HandleFunc("/add_change_customer", add_change_customer)
@@ -214,10 +221,6 @@ func main() {
 
 	router.HandleFunc("/login", login)
 	router.HandleFunc("/loginPost", loginPost)
-
-	router.HandleFunc("/loginind", loginind)
-
-	router.HandleFunc("/logintest", logintest)
 
 	var dir string
 	flag.StringVar(&dir, "dir", ".", "the directory to serve files from. Defaults to the current dir")
