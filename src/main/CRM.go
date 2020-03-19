@@ -6,22 +6,29 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	//"github.com/gorilla/sessions"
+	"encoding/base64"
+	"net/mail"
+	"net/smtp"
 )
 
 type customer_struct struct {
-	customer_name string
-	customer_id   string
-	customer_type string
+	customer_name  string
+	customer_id    string
+	customer_type  string
+	customer_email string
 }
 
 var customer_map = make(map[string]customer_struct)
 
 var cookiemap = make(map[string]string)
 var users = make(map[string]string)
+
+var mass_settings = make([]string, 2)
 
 const cookieName = "CookieCRM"
 
@@ -110,11 +117,18 @@ func add_change_customer(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func encodeRFC2047(String string) string {
+	// use mail's rfc2047 to encode any string
+	addr := mail.Address{String, ""}
+	return strings.Trim(addr.String(), " <>")
+}
+
 func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
 	customer_data := customer_struct{
-		customer_name: r.FormValue("customer_name"),
-		customer_id:   r.FormValue("customer_id"),
-		customer_type: r.FormValue("customer_type"),
+		customer_name:  r.FormValue("customer_name"),
+		customer_id:    r.FormValue("customer_id"),
+		customer_type:  r.FormValue("customer_type"),
+		customer_email: r.FormValue("customer_email"),
 	}
 
 	customer_map[r.FormValue("customer_id")] = customer_data
@@ -191,6 +205,74 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", 302)
 }
 
+func email_settings(w http.ResponseWriter, r *http.Request) {
+	// Add fill elements form from a global variable or database
+	// Add the ability to select an smtp-server or extract a server from an email address
+	http.ServeFile(w, r, "./mail_smtp/settings.html")
+}
+
+func email_settingsPost(w http.ResponseWriter, r *http.Request) {
+	email := r.FormValue("email")
+	password := r.FormValue("password")
+
+	//fmt.Fprint(w, email+"error auth user not find"+password)
+
+	mass_settings[0] = email
+	mass_settings[1] = password
+
+	http.Redirect(w, r, "/", 302)
+}
+
+func send_message(w http.ResponseWriter, r *http.Request) {
+
+	// Set up authentication information. https://yandex.ru/support/mail/mail-clients.html
+
+	smtpServer := "smtp.yandex.ru"
+	auth := smtp.PlainAuth(
+		"",
+		mass_settings[0],
+		mass_settings[1],
+		smtpServer,
+	)
+
+	from := mail.Address{"Test", mass_settings[0]}
+	to := mail.Address{"test2", "dima-irk35@mail.ru"}
+	title := "Title"
+
+	body := "body"
+
+	header := make(map[string]string)
+	header["From"] = from.String()
+	header["To"] = to.String()
+	header["Subject"] = encodeRFC2047(title)
+	header["MIME-Version"] = "1.0"
+	header["Content-Type"] = "text/plain; charset=\"utf-8\""
+	header["Content-Transfer-Encoding"] = "base64"
+
+	message := ""
+	for k, v := range header {
+		message += fmt.Sprintf("%s: %s\r\n", k, v)
+	}
+	message += "\r\n" + base64.StdEncoding.EncodeToString([]byte(body))
+
+	// Connect to the server, authenticate, set the sender and recipient,
+	// and send the email all in one step.
+	err := smtp.SendMail(
+		smtpServer+":25",
+		auth,
+		from.Address,
+		[]string{to.Address},
+		[]byte(message),
+		//[]byte("This is the email body."),
+	)
+	if err != nil {
+		fmt.Fprint(w, "error"+err.Error())
+	} else {
+		http.Redirect(w, r, "/", 302)
+	}
+
+}
+
 func main() {
 
 	users["admin"] = "admin"
@@ -222,6 +304,11 @@ func main() {
 	router.HandleFunc("/login", login)
 	router.HandleFunc("/loginPost", loginPost)
 
+	router.HandleFunc("/email_settings", email_settings)
+	router.HandleFunc("/email_settingsPost", email_settingsPost)
+
+	router.HandleFunc("/send_message", send_message)
+
 	var dir string
 	flag.StringVar(&dir, "dir", ".", "the directory to serve files from. Defaults to the current dir")
 	flag.Parse()
@@ -234,4 +321,5 @@ func main() {
 
 	fmt.Println("Server is listening...")
 	http.ListenAndServe(":8181", nil)
+
 }
