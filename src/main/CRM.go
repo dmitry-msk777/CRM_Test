@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"flag"
 	"fmt"
 	"html/template"
@@ -14,6 +15,8 @@ import (
 	"encoding/base64"
 	"net/mail"
 	"net/smtp"
+
+	"github.com/tiaguinho/gosoap"
 )
 
 type customer_struct struct {
@@ -30,6 +33,8 @@ var users = make(map[string]string)
 
 var mass_settings = make([]string, 2)
 
+var type_memory_storage string
+
 const cookieName = "CookieCRM"
 
 type ViewData struct {
@@ -38,6 +43,12 @@ type ViewData struct {
 	User      string
 	Customers map[string]customer_struct
 }
+
+type GetINNResponse struct {
+	INN string `xml:"INN"`
+}
+
+var resINN GetINNResponse
 
 func GenerateId() string {
 	b := make([]byte, 16)
@@ -273,7 +284,50 @@ func send_message(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func soap_get(w http.ResponseWriter, r *http.Request) {
+	////Work with SOAP "github.com/tiaguinho/gosoap"
+	// Do not job check site https://infostart.ru/public/439808/
+	soap, err := gosoap.SoapClient("http://npchk.nalog.ru/FNSNDSCAWS_2?wsdl")
+	if err != nil {
+		fmt.Errorf("error not expected: %s", err)
+	}
+
+	params := gosoap.Params{
+		"INN": "7702807750",
+	}
+
+	err = soap.Call("FNSNDSCAWS2", params)
+	if err != nil {
+		fmt.Errorf("error in soap call: %s", err)
+	}
+
+	soap.Unmarshal(&resINN)
+	// if r.GetINNResponse.CountryCode != "USA" {
+	// 	fmt.Errorf("error: %+v", r)
+	// }
+	fmt.Println(resINN)
+}
+
 func main() {
+
+	//split handler so
+	//if r.Method == "POST" {
+
+	type_memory_storage_flag := flag.String("type_memory_storage", "", "type storage data")
+	flag.Parse()
+
+	if *type_memory_storage_flag == "" {
+		type_memory_storage = "global_variable"
+	} else {
+		type_memory_storage = *type_memory_storage_flag
+	}
+
+	//temporary
+	*type_memory_storage_flag = "SQLit"
+
+	if *type_memory_storage_flag == "SQLit" {
+		db, err := sql.Open("customer", "./bd/SQLit/base_sqlit.db")
+	}
 
 	users["admin"] = "admin"
 
@@ -308,10 +362,11 @@ func main() {
 	router.HandleFunc("/email_settingsPost", email_settingsPost)
 
 	router.HandleFunc("/send_message", send_message)
+	router.HandleFunc("/soap_get", soap_get)
 
-	var dir string
-	flag.StringVar(&dir, "dir", ".", "the directory to serve files from. Defaults to the current dir")
-	flag.Parse()
+	// var dir string
+	// flag.StringVar(&dir, "dir", ".", "the directory to serve files from. Defaults to the current dir")
+	// flag.Parse()
 
 	//router.Handle("/js/", http.FileServer(http.Dir("./js/")))
 	//Работает
