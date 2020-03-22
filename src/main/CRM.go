@@ -15,8 +15,6 @@ import (
 	"encoding/base64"
 	"net/mail"
 	"net/smtp"
-
-	"github.com/tiaguinho/gosoap"
 )
 
 type customer_struct struct {
@@ -285,27 +283,27 @@ func send_message(w http.ResponseWriter, r *http.Request) {
 }
 
 func soap_get(w http.ResponseWriter, r *http.Request) {
-	////Work with SOAP "github.com/tiaguinho/gosoap"
-	// Do not job check site https://infostart.ru/public/439808/
-	soap, err := gosoap.SoapClient("http://npchk.nalog.ru/FNSNDSCAWS_2?wsdl")
-	if err != nil {
-		fmt.Errorf("error not expected: %s", err)
-	}
-
-	params := gosoap.Params{
-		"INN": "7702807750",
-	}
-
-	err = soap.Call("FNSNDSCAWS2", params)
-	if err != nil {
-		fmt.Errorf("error in soap call: %s", err)
-	}
-
-	soap.Unmarshal(&resINN)
-	// if r.GetINNResponse.CountryCode != "USA" {
-	// 	fmt.Errorf("error: %+v", r)
+	// ////Work with SOAP "github.com/tiaguinho/gosoap"
+	// // Do not job check site https://infostart.ru/public/439808/
+	// soap, err := gosoap.SoapClient("http://npchk.nalog.ru/FNSNDSCAWS_2?wsdl")
+	// if err != nil {
+	// 	fmt.Errorf("error not expected: %s", err)
 	// }
-	fmt.Println(resINN)
+
+	// params := gosoap.Params{
+	// 	"INN": "7702807750",
+	// }
+
+	// err = soap.Call("FNSNDSCAWS2", params)
+	// if err != nil {
+	// 	fmt.Errorf("error in soap call: %s", err)
+	// }
+
+	// soap.Unmarshal(&resINN)
+	// // if r.GetINNResponse.CountryCode != "USA" {
+	// // 	fmt.Errorf("error: %+v", r)
+	// // }
+	// fmt.Println(resINN)
 }
 
 func main() {
