@@ -16,6 +16,8 @@ import (
 	"net/mail"
 	"net/smtp"
 
+	//"github.com/tiaguinho/gosoap"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/tiaguinho/gosoap"
 )
 
@@ -326,7 +328,7 @@ func main() {
 	*type_memory_storage_flag = "SQLit"
 
 	if *type_memory_storage_flag == "SQLit" {
-		db, err := sql.Open("sqlite3", "./bd/SQLit/base_sqlit.db")
+		db, err := sql.Open("sqlite3", "base_sqlit.db")
 
 		if err != nil {
 			panic(err)
