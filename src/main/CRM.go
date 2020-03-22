@@ -326,7 +326,22 @@ func main() {
 	*type_memory_storage_flag = "SQLit"
 
 	if *type_memory_storage_flag == "SQLit" {
-		db, err := sql.Open("customer", "./bd/SQLit/base_sqlit.db")
+		db, err := sql.Open("sqlite3", "./bd/SQLit/base_sqlit.db")
+
+		if err != nil {
+			panic(err)
+		}
+		defer db.Close()
+		//result, err := db.Exec("insert into products (model, company, price) values ('iPhone X', $1, $2)",
+		//    "Apple", 72000)
+		result, err := db.Exec("insert into customer (id, email) values ('123', $1)",
+			"Apple")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(result.LastInsertId()) // id последнего добавленного объекта
+		fmt.Println(result.RowsAffected()) // количество добавленных строк
+
 	}
 
 	users["admin"] = "admin"
