@@ -22,7 +22,7 @@ import (
 )
 
 type Customer_struct struct {
-	Customer_id  string
+	Customer_id    string
 	Customer_name  string
 	Customer_type  string
 	Customer_email string
@@ -308,9 +308,59 @@ func email_settings(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == "GET" {
 
+		tmpl, err := template.ParseFiles("mail_smtp/settings.html", "templates/header.html")
+		if err != nil {
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+
+		if type_memory_storage == "SQLit" {
+
+			// var customer_map_s = make(map[string]Customer_struct)
+
+			// rows, err := database.Query("select * from customer")
+			// if err != nil {
+			// 	panic(err)
+			// }
+			// defer rows.Close()
+			// Customer_struct_s := []Customer_struct{}
+
+			// for rows.Next() {
+			// 	p := Customer_struct{}
+			// 	err := rows.Scan(&p.Customer_id, &p.Customer_name, &p.Customer_type, &p.Customer_email)
+			// 	if err != nil {
+			// 		fmt.Println(err)
+			// 		continue
+			// 	}
+			// 	Customer_struct_s = append(Customer_struct_s, p)
+			// }
+			// for _, p := range Customer_struct_s {
+			// 	customer_map_s[p.Customer_id] = p
+			// }
+
+			data := ViewData{
+				Title:     "Test777",
+				Message:   "Test777",
+				User:      "Test777",
+				Customers: nil,
+			}
+			tmpl.ExecuteTemplate(w, "settings_email", data)
+
+		} else {
+			tmpl.ExecuteTemplate(w, "list_customer", customer_map)
+		}
+
+		// data := ViewData{
+		// 	Title:     "list customer",
+		// 	Message:   "list customer below",
+		// 	Customers: customer_map,
+		// }
+
+		//tmpl.ExecuteTemplate(w, "list_customer", data)
+
 		// Add fill elements form from a global variable or database
 		// Add the ability to select an smtp-server or extract a server from an email address
-		http.ServeFile(w, r, "./mail_smtp/settings.html")
+		//http.ServeFile(w, r, "./mail_smtp/settings.html")
 	} else {
 		email := r.FormValue("email")
 		password := r.FormValue("password")
@@ -390,22 +440,28 @@ func EditPage(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	row := database.QueryRow("select * from customer where customer_id = ?", id)
 	Customer_struct_out := Customer_struct{}
-	err := row.Scan(&Customer_struct_out.Customer_id, &Customer_struct_out.Customer_name, &Customer_struct_out.Customer_type, &Customer_struct_out.Customer_email)
-	if err != nil {
-		//log.Println(err)
-		http.Error(w, http.StatusText(404), http.StatusNotFound)
-	} else {
-		tmpl, err := template.ParseFiles("templates/edit.html", "templates/header.html")
+	if type_memory_storage == "SQLit" {
+		row := database.QueryRow("select * from customer where customer_id = ?", id)
+
+		err := row.Scan(&Customer_struct_out.Customer_id, &Customer_struct_out.Customer_name, &Customer_struct_out.Customer_type, &Customer_struct_out.Customer_email)
 		if err != nil {
-			fmt.Fprintf(w, err.Error())
-			return
+			//log.Println(err)
+			http.Error(w, http.StatusText(404), http.StatusNotFound)
 		}
 
-		tmpl.ExecuteTemplate(w, "edit", Customer_struct_out)
-
+	} else {
+		Customer_struct_out = customer_map[id]
 	}
+
+	tmpl, err := template.ParseFiles("templates/edit.html", "templates/header.html")
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	tmpl.ExecuteTemplate(w, "edit", Customer_struct_out)
+
 }
 
 func EditHandler(w http.ResponseWriter, r *http.Request) {
@@ -419,33 +475,44 @@ func EditHandler(w http.ResponseWriter, r *http.Request) {
 	customer_type := r.FormValue("customer_type")
 	customer_email := r.FormValue("customer_email")
 
-	_, err = database.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
-		customer_name, customer_type, customer_email, customer_id)
+	if type_memory_storage == "SQLit" {
+		_, err = database.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
+			customer_name, customer_type, customer_email, customer_id)
 
-	if err != nil {
-		// log.Println(err)
-		fmt.Fprintf(w, err.Error())
+		if err != nil {
+			// log.Println(err)
+			fmt.Fprintf(w, err.Error())
+		}
+	} else {
+		Customer_struct_out := Customer_struct{}
+		Customer_struct_out.Customer_id = customer_id
+		Customer_struct_out.Customer_name = customer_name
+		Customer_struct_out.Customer_type = customer_type
+		Customer_struct_out.Customer_email = customer_email
+
+		customer_map[customer_id] = Customer_struct_out
 	}
 	http.Redirect(w, r, "/list_customer", 301)
 }
 
 func DeleteHandler(w http.ResponseWriter, r *http.Request) {
-    vars := mux.Vars(r)
-    id := vars["id"]
- 
+	vars := mux.Vars(r)
+	id := vars["id"]
+
 	if type_memory_storage == "SQLit" {
-    _, err := database.Exec("delete from customer where customer_id = ?", id)
-    if err != nil{
-		//log.Println(err)
-		fmt.Fprintf(w, err.Error())}
-    }else{
+		_, err := database.Exec("delete from customer where customer_id = ?", id)
+		if err != nil {
+			//log.Println(err)
+			fmt.Fprintf(w, err.Error())
+		}
+	} else {
 		_, ok := customer_map[id]
 		if ok {
 			delete(customer_map, id)
 		}
 	}
-     
-    http.Redirect(w, r, "/list_customer", 301)
+
+	http.Redirect(w, r, "/list_customer", 301)
 }
 
 func soap_get(w http.ResponseWriter, r *http.Request) {
@@ -528,7 +595,7 @@ func main() {
 	}
 
 	//temporary
-	type_memory_storage = "SQLit"
+	//type_memory_storage = "SQLit"
 
 	if type_memory_storage == "SQLit" {
 
