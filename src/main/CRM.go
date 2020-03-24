@@ -522,53 +522,41 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 	customer_INN := r.URL.Query().Get("customer_INN")
 
 	// ////Work with SOAP "github.com/tiaguinho/gosoap"
-	// // Do not job check site https://infostart.ru/public/439808/
-	// soap, err := gosoap.SoapClient("http://npchk.nalog.ru/FNSNDSCAWS_2?wsdl")
-	// if err != nil {
-	// 	fmt.Fprintf(w, "error not expected::"+err.Error())
-	// }
-
-	// params := gosoap.Params{
-	// 	"INN": "7702807750",
-	// }
-
-	// err = soap.Call("NdsRequest2", params)
-	// if err != nil {
-	// 	fmt.Fprintf(w, "error in soap call:"+err.Error())
-	// }
-
-	// soap.Unmarshal(&NdsResponse)
-	// // if r.GetINNResponse.CountryCode != "USA" {
-	// // 	fmt.Errorf("error: %+v", r)
-	// // }
-	// fmt.Println(NdsResponse)
 
 	client := &http.Client{}
 
+	// //insert param
+	// soapQuery := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+	// <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:req="http://ws.unisoft/FNSNDSCAWS2/Request">
+	//    <soapenv:Header/>
+	//    <soapenv:Body>
+	// 	  <req:NdsRequest2>
+	// 		 <!--1 to 10000 repetitions:-->
+	// 		 <req:NP INN="` + customer_INN + `"/>
+	// 	  </req:NdsRequest2>
+	//    </soapenv:Body>
+	// </soapenv:Envelope>`)
+
 	//replace string
-	soapQuery := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+	soapQuery := string(`<?xml version="1.0" encoding="UTF-8"?>
 	<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:req="http://ws.unisoft/FNSNDSCAWS2/Request">
 	   <soapenv:Header/>
 	   <soapenv:Body>
 		  <req:NdsRequest2>
 			 <!--1 to 10000 repetitions:-->
-			 <req:NP INN="` + customer_INN + `"/>
+			 <req:NP INN="customer_INN"/>
 		  </req:NdsRequest2>
 	   </soapenv:Body>
 	</soapenv:Envelope>`)
 
-	// INN 7702807750
+	soapQuery = strings.Replace(soapQuery, "customer_INN", customer_INN, 1)
 
 	urlReq := "https://npchk.nalog.ru:443/FNSNDSCAWS_2"
 
-	req, err := http.NewRequest("POST", urlReq, bytes.NewBuffer(soapQuery))
+	req, err := http.NewRequest("POST", urlReq, bytes.NewBuffer([]byte(soapQuery)))
 	if err != nil {
 		fmt.Fprintf(w, err.Error())
 	}
-
-	//if p.Client.Username != "" && p.Client.Password != "" {
-	//	req.SetBasicAuth(p.Client.Username, p.Client.Password)
-	//}
 
 	req.ContentLength = int64(len(soapQuery))
 
@@ -636,6 +624,15 @@ func initDB() {
 
 }
 
+func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Fprintf(w, "fuck 1c")
+
+	if r.Method == "GET" {
+	}
+
+}
+
 func main() {
 
 	//split handler so
@@ -680,7 +677,7 @@ func main() {
 	//localhost:8181/get_customer?customer_id="123"
 	router.HandleFunc("/get_customer", get_customer)
 
-	//http://localhost:8181/CheckINN?customer_INN="800"
+	//http://localhost:8181/checkINN?customer_INN=7702807750
 	router.HandleFunc("/checkINN", checkINN)
 
 	// router.HandleFunc("/users", users)
@@ -704,6 +701,8 @@ func main() {
 	router.HandleFunc("/edit/{id:[0-9]+}", EditPage).Methods("GET")
 	router.HandleFunc("/edit/{id:[0-9]+}", EditHandler).Methods("POST")
 	router.HandleFunc("/delete/{id:[0-9]+}", DeleteHandler)
+
+	router.HandleFunc("/send_message", connection_rest_1C)
 
 	// var dir string
 	// flag.StringVar(&dir, "dir", ".", "the directory to serve files from. Defaults to the current dir")
