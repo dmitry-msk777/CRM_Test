@@ -15,17 +15,23 @@
         <div class="collapse navbar-collapse">
             <ul class="nav navbar-nav">
                 <li><a href="/list_customer">Custom List</a></li>
-				<li><a href="/add_change_customer">Add Custom</a></li>
+				<li><a href="/add_change_customer">Add Custom</a></li> 
+				<li><a href="/email_settings">Email settings</a></li> 
             </ul>
 		<label>Find Customer </label><br>
         <input type="number" name="customer_id" id="customer_id" /><br><br>
-		<input type="button" value="Find customer" id="MyElem">
-		
-        </div>
+		<input type="button" value="Find customer" id="FindCustomer">
+
+		</div>
+		<div>
+			<label>Check INN </label><br>
+			<input type="number" name="customer_INN" id="customer_INN" /><br><br>
+			<input type="button" value="Check INN" id="CheckINN">
+		</div>		
     </div>
 
 		<script>
-			function say_hi() {
+			function FindCustomer() {
 			var fname = document.getElementById('customer_id').value;
 			//var html = 'Hello <b>' + fname + '</b> ' + lname;
 	 
@@ -33,8 +39,18 @@
 			// Разметка <input type="button" value="go" onclick="location.href='abrokazyabra.html'" />
 			document.location.href = "get_customer?customer_id="+fname;
 			}
+
+			function CheckINN() {
+			var fname = document.getElementById('customer_INN').value;
+			//var html = 'Hello <b>' + fname + '</b> ' + lname;
 	 
-			document.getElementById('MyElem').addEventListener('click', say_hi);
+			//alert(fname);
+			// Разметка <input type="button" value="go" onclick="location.href='abrokazyabra.html'" />
+			document.location.href = "checkINN?customer_INN="+fname;
+			}
+	 
+			document.getElementById('FindCustomer').addEventListener('click', FindCustomer);
+			document.getElementById('CheckINN').addEventListener('click', CheckINN);
 		</script>
 	
 </body>
