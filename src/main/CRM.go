@@ -17,8 +17,11 @@ import (
 	"net/smtp"
 
 	//"github.com/tiaguinho/gosoap"
+	"bytes"
+	"encoding/xml"
+	"io/ioutil"
+
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/tiaguinho/gosoap"
 )
 
 type Customer_struct struct {
@@ -36,6 +39,11 @@ type users_base struct {
 type cookie_base struct {
 	id   string
 	user string
+}
+
+type NdsResponse2 struct {
+	INN   string `xml:"INN"`
+	State string `xml:"State"`
 }
 
 var database *sql.DB
@@ -58,11 +66,16 @@ type ViewData struct {
 	Customers map[string]Customer_struct
 }
 
-type GetINNResponse struct {
-	INN string `xml:"INN"`
-}
+// type NdsResponse2 struct {
+// 	INN   string `xml:"INN"`
+// 	State string `xml:"State"`
+// }
+// type NdsRequest2 struct {
+// 	INN string `xml:"INN"`
+// }
 
-var resINN GetINNResponse
+// var NdsRequest NdsRequest2
+// var NdsResponse NdsResponse2
 
 func GenerateId() string {
 	b := make([]byte, 16)
@@ -314,6 +327,13 @@ func email_settings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		data := ViewData{
+			Title:     "Test777",
+			Message:   mass_settings[1],
+			User:      mass_settings[0],
+			Customers: nil,
+		}
+
 		if type_memory_storage == "SQLit" {
 
 			// var customer_map_s = make(map[string]Customer_struct)
@@ -338,16 +358,10 @@ func email_settings(w http.ResponseWriter, r *http.Request) {
 			// 	customer_map_s[p.Customer_id] = p
 			// }
 
-			data := ViewData{
-				Title:     "Test777",
-				Message:   "Test777",
-				User:      "Test777",
-				Customers: nil,
-			}
 			tmpl.ExecuteTemplate(w, "settings_email", data)
 
 		} else {
-			tmpl.ExecuteTemplate(w, "list_customer", customer_map)
+			tmpl.ExecuteTemplate(w, "settings_email", data)
 		}
 
 		// data := ViewData{
@@ -373,18 +387,6 @@ func email_settings(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", 302)
 	}
 }
-
-// func email_settingsPost(w http.ResponseWriter, r *http.Request) {
-// 	email := r.FormValue("email")
-// 	password := r.FormValue("password")
-
-// 	//fmt.Fprint(w, email+"error auth user not find"+password)
-
-// 	mass_settings[0] = email
-// 	mass_settings[1] = password
-
-// 	http.Redirect(w, r, "/", 302)
-// }
 
 func send_message(w http.ResponseWriter, r *http.Request) {
 
@@ -515,28 +517,84 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/list_customer", 301)
 }
 
-func soap_get(w http.ResponseWriter, r *http.Request) {
-	////Work with SOAP "github.com/tiaguinho/gosoap"
-	// Do not job check site https://infostart.ru/public/439808/
-	soap, err := gosoap.SoapClient("http://npchk.nalog.ru/FNSNDSCAWS_2?wsdl")
-	if err != nil {
-		fmt.Errorf("error not expected: %s", err)
-	}
+func checkINN(w http.ResponseWriter, r *http.Request) {
 
-	params := gosoap.Params{
-		"INN": "7702807750",
-	}
+	customer_INN := r.URL.Query().Get("customer_INN")
 
-	err = soap.Call("FNSNDSCAWS2", params)
-	if err != nil {
-		fmt.Errorf("error in soap call: %s", err)
-	}
-
-	soap.Unmarshal(&resINN)
-	// if r.GetINNResponse.CountryCode != "USA" {
-	// 	fmt.Errorf("error: %+v", r)
+	// ////Work with SOAP "github.com/tiaguinho/gosoap"
+	// // Do not job check site https://infostart.ru/public/439808/
+	// soap, err := gosoap.SoapClient("http://npchk.nalog.ru/FNSNDSCAWS_2?wsdl")
+	// if err != nil {
+	// 	fmt.Fprintf(w, "error not expected::"+err.Error())
 	// }
-	fmt.Println(resINN)
+
+	// params := gosoap.Params{
+	// 	"INN": "7702807750",
+	// }
+
+	// err = soap.Call("NdsRequest2", params)
+	// if err != nil {
+	// 	fmt.Fprintf(w, "error in soap call:"+err.Error())
+	// }
+
+	// soap.Unmarshal(&NdsResponse)
+	// // if r.GetINNResponse.CountryCode != "USA" {
+	// // 	fmt.Errorf("error: %+v", r)
+	// // }
+	// fmt.Println(NdsResponse)
+
+	client := &http.Client{}
+
+	//replace string
+	soapQuery := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+	<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:req="http://ws.unisoft/FNSNDSCAWS2/Request">
+	   <soapenv:Header/>
+	   <soapenv:Body>
+		  <req:NdsRequest2>
+			 <!--1 to 10000 repetitions:-->
+			 <req:NP INN="` + customer_INN + `"/>
+		  </req:NdsRequest2>
+	   </soapenv:Body>
+	</soapenv:Envelope>`)
+
+	// INN 7702807750
+
+	urlReq := "https://npchk.nalog.ru:443/FNSNDSCAWS_2"
+
+	req, err := http.NewRequest("POST", urlReq, bytes.NewBuffer(soapQuery))
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+	}
+
+	//if p.Client.Username != "" && p.Client.Password != "" {
+	//	req.SetBasicAuth(p.Client.Username, p.Client.Password)
+	//}
+
+	req.ContentLength = int64(len(soapQuery))
+
+	req.Header.Add("Content-Type", "text/xml;charset=UTF-8")
+	req.Header.Add("Accept", "text/xml")
+	req.Header.Add("SOAPAction", "NdsRequest2")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+	}
+	res := &NdsResponse2{}
+	err = xml.Unmarshal(body, res)
+	if err != nil {
+		fmt.Fprintf(w, err.Error())
+	}
+
+	fmt.Println(string(body))
+	fmt.Fprintf(w, string(body))
+
 }
 
 func initDB() {
@@ -622,6 +680,9 @@ func main() {
 	//localhost:8181/get_customer?customer_id="123"
 	router.HandleFunc("/get_customer", get_customer)
 
+	//http://localhost:8181/CheckINN?customer_INN="800"
+	router.HandleFunc("/checkINN", checkINN)
+
 	// router.HandleFunc("/users", users)
 
 	router.HandleFunc("/add_change_customer", add_change_customer)
@@ -638,7 +699,6 @@ func main() {
 	//router.HandleFunc("/email_settingsPost", email_settingsPost)
 
 	router.HandleFunc("/send_message", send_message)
-	router.HandleFunc("/soap_get", soap_get)
 
 	//localhost:8181/edit/2
 	router.HandleFunc("/edit/{id:[0-9]+}", EditPage).Methods("GET")
