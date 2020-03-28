@@ -21,6 +21,8 @@ import (
 	"encoding/xml"
 	"io/ioutil"
 
+	"regexp"
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -581,7 +583,44 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println(string(body))
-	fmt.Fprintf(w, string(body))
+	//fmt.Fprintf(w, string(body))
+
+	result_check := ""
+
+	re := regexp.MustCompile(`State=["]([^"]+)["]`)
+	submatchall := re.FindAllStringSubmatch(string(body), -1)
+	for _, element := range submatchall {
+		result_check = element[1]
+	}
+
+	switch result_check {
+	case "0":
+		fmt.Fprintf(w, "Налогоплательщик зарегистрирован в ЕГРН и имел статус действующего в указанную дату")
+	case "1":
+		fmt.Fprintf(w, "Налогоплательщик зарегистрирован в ЕГРН, но не имел статус действующего в указанную дату")
+	case "2":
+		fmt.Fprintf(w, "Налогоплательщик зарегистрирован в ЕГРН")
+	case "3":
+		fmt.Fprintf(w, "Налогоплательщик с указанным ИНН зарегистрирован в ЕГРН, КПП не соответствует ИНН или не указан*")
+	case "4":
+		fmt.Fprintf(w, "Налогоплательщик с указанным ИНН не зарегистрирован в ЕГРН")
+	case "5":
+		fmt.Fprintf(w, "Некорректный ИНН")
+	case "6":
+		fmt.Fprintf(w, "Недопустимое количество символов ИНН")
+	case "7":
+		fmt.Fprintf(w, "Недопустимое количество символов КПП")
+	case "8":
+		fmt.Fprintf(w, "Недопустимые символы в ИНН")
+	case "9":
+		fmt.Fprintf(w, "Недопустимые символы в КПП")
+	case "11":
+		fmt.Fprintf(w, "некорректный формат даты")
+	case "12":
+		fmt.Fprintf(w, "некорректная дата (ранее 01.01.1991 или позднее текущей даты)")
+	default:
+		fmt.Fprintf(w, "Error find: "+result_check)
+	}
 
 }
 
