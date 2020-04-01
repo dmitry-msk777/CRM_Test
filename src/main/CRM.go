@@ -18,6 +18,7 @@ import (
 
 	//"github.com/tiaguinho/gosoap"
 	"bytes"
+	"encoding/json"
 	"encoding/xml"
 	"io/ioutil"
 
@@ -43,9 +44,24 @@ type cookie_base struct {
 	user string
 }
 
-type NdsResponse2 struct {
-	INN   string `xml:"INN"`
-	State string `xml:"State"`
+type Envelope struct {
+	XMLName xml.Name `xml:"Envelope"`
+	Text    string   `xml:",chardata"`
+	S       string   `xml:"S,attr"`
+	Body    struct {
+		Text         string `xml:",chardata"`
+		NdsResponse2 struct {
+			Text    string `xml:",chardata"`
+			Xmlns   string `xml:"xmlns,attr"`
+			DTActFL string `xml:"DTActFL,attr"`
+			DTActUL string `xml:"DTActUL,attr"`
+			NP      struct {
+				Text  string `xml:",chardata"`
+				INN   string `xml:"INN,attr"`
+				State string `xml:"State,attr"`
+			} `xml:"NP"`
+		} `xml:"NdsResponse2"`
+	} `xml:"Body"`
 }
 
 var database *sql.DB
@@ -67,17 +83,6 @@ type ViewData struct {
 	User      string
 	Customers map[string]Customer_struct
 }
-
-// type NdsResponse2 struct {
-// 	INN   string `xml:"INN"`
-// 	State string `xml:"State"`
-// }
-// type NdsRequest2 struct {
-// 	INN string `xml:"INN"`
-// }
-
-// var NdsRequest NdsRequest2
-// var NdsResponse NdsResponse2
 
 func GenerateId() string {
 	b := make([]byte, 16)
@@ -527,18 +532,6 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 
 	client := &http.Client{}
 
-	// //insert param
-	// soapQuery := []byte(`<?xml version="1.0" encoding="UTF-8"?>
-	// <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:req="http://ws.unisoft/FNSNDSCAWS2/Request">
-	//    <soapenv:Header/>
-	//    <soapenv:Body>
-	// 	  <req:NdsRequest2>
-	// 		 <!--1 to 10000 repetitions:-->
-	// 		 <req:NP INN="` + customer_INN + `"/>
-	// 	  </req:NdsRequest2>
-	//    </soapenv:Body>
-	// </soapenv:Envelope>`)
-
 	//replace string
 	soapQuery := string(`<?xml version="1.0" encoding="UTF-8"?>
 	<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:req="http://ws.unisoft/FNSNDSCAWS2/Request">
@@ -576,14 +569,15 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Fprintf(w, err.Error())
 	}
-	res := &NdsResponse2{}
-	err = xml.Unmarshal(body, res)
-	if err != nil {
-		fmt.Fprintf(w, err.Error())
-	}
+
+	// don't understand how to create valid xml type map from an body xml
+	// res := &Envelope{}
+	// err = xml.Unmarshal(body, res)
+	// if err != nil {
+	// 	fmt.Fprintf(w, err.Error())
+	// }
 
 	fmt.Println(string(body))
-	//fmt.Fprintf(w, string(body))
 
 	result_check := ""
 
@@ -665,19 +659,112 @@ func initDB() {
 
 func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 
-	fmt.Fprintf(w, "fuck 1c")
-
 	if r.Method == "GET" {
+
+		// // get parametrs from get-http
+		// for key, value := range r.Header {
+		// 	if key == "Token" {
+		// 		fmt.Println("Token:" + value[0])
+		// 	}
+		// }
+
+		if type_memory_storage == "SQLit" {
+
+			var customer_map_s = make(map[string]Customer_struct)
+
+			rows, err := database.Query("select * from customer")
+			if err != nil {
+				panic(err)
+			}
+			defer rows.Close()
+			Customer_struct_s := []Customer_struct{}
+
+			for rows.Next() {
+				p := Customer_struct{}
+				err := rows.Scan(&p.Customer_id, &p.Customer_name, &p.Customer_type, &p.Customer_email)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+				Customer_struct_s = append(Customer_struct_s, p)
+			}
+			for _, p := range Customer_struct_s {
+				customer_map_s[p.Customer_id] = p
+			}
+
+			userVar2, err := json.Marshal(customer_map_s)
+			if err != nil {
+				fmt.Fprintf(w, "error json:"+err.Error())
+			}
+			fmt.Fprintf(w, string(userVar2))
+
+		} else {
+			userVar2, err := json.Marshal(customer_map)
+			if err != nil {
+				fmt.Fprintf(w, "error json:"+err.Error())
+			}
+			fmt.Fprintf(w, string(userVar2))
+		}
+
+	} else {
+
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			fmt.Fprintf(w, err.Error())
+		}
+
+		var customer_map_json = make(map[string]Customer_struct)
+		//Customer_struct := &Customer_struct{}
+
+		err = json.Unmarshal(body, &customer_map_json)
+		if err != nil {
+			fmt.Fprintf(w, err.Error())
+		}
+
+		if type_memory_storage == "SQLit" {
+
+			var count int
+
+			for _, p := range customer_map_json {
+
+				row := database.QueryRow("select COUNT(*) from customer where customer_id = ?", p.Customer_id)
+
+				err := row.Scan(&count)
+				if err != nil {
+					fmt.Fprintf(w, err.Error())
+				}
+
+				if count == 0 {
+
+					_, err = database.Exec("insert into customer (customer_id, customer_name, customer_type, customer_email) values (?, ?, ?, ?)",
+						p.Customer_id, p.Customer_name, p.Customer_type, p.Customer_email)
+
+					if err != nil {
+						fmt.Fprintf(w, err.Error())
+					}
+				} else {
+					_, err = database.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
+						p.Customer_name, p.Customer_type, p.Customer_email, p.Customer_id)
+
+					if err != nil {
+						fmt.Fprintf(w, err.Error())
+					}
+				}
+			}
+
+		} else {
+			for _, p := range customer_map_json {
+				customer_map[p.Customer_id] = p
+			}
+		}
+
+		fmt.Fprintf(w, string(body))
+
 	}
 
 }
 
 func main() {
-
-	//split handler so
-	//if r.Method == "POST" {
-
-	//or use this   router.HandleFunc("/edit/{id:[0-9]+}", EditPage).Methods("GET")
 
 	type_memory_storage_flag := flag.String("type_memory_storage", "", "type storage data")
 	flag.Parse()
@@ -689,7 +776,7 @@ func main() {
 	}
 
 	//temporary
-	//type_memory_storage = "SQLit"
+	type_memory_storage = "SQLit"
 
 	if type_memory_storage == "SQLit" {
 
@@ -741,7 +828,7 @@ func main() {
 	router.HandleFunc("/edit/{id:[0-9]+}", EditHandler).Methods("POST")
 	router.HandleFunc("/delete/{id:[0-9]+}", DeleteHandler)
 
-	router.HandleFunc("/send_message", connection_rest_1C)
+	router.HandleFunc("/connection_rest_1C", connection_rest_1C)
 
 	// var dir string
 	// flag.StringVar(&dir, "dir", ".", "the directory to serve files from. Defaults to the current dir")
