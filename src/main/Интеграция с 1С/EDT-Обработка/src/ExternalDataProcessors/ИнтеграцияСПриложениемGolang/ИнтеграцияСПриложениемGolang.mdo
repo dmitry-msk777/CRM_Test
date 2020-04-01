@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:ExternalDataProcessor xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="96bf5406-d3ae-42ba-bedd-7e114868a71b">
+  <producedTypes>
+    <objectType typeId="e6e165ec-d66b-4ecd-a681-4f2a81210476" valueTypeId="5f9b87a3-1efe-46e6-95e1-d4e2bb276376"/>
+  </producedTypes>
+  <name>ИнтеграцияСПриложениемGolang</name>
+  <synonym>
+    <key>ru</key>
+    <value>Интеграция с приложением golang</value>
+  </synonym>
+  <containedObjects classId="c3831ec8-d8d5-4f93-8a22-f9bfae07327f" objectId="f3c1c5ff-7392-49bf-aa05-9c7c97be1b24"/>
+  <defaultForm>ExternalDataProcessor.ИнтеграцияСПриложениемGolang.Form.Форма</defaultForm>
+  <forms uuid="12222146-bc10-47c0-8320-902eaf1fa71c">
+    <name>Форма</name>
+    <synonym>
+      <key>ru</key>
+      <value>Форма</value>
+    </synonym>
+    <usePurposes>PersonalComputer</usePurposes>
+    <usePurposes>MobileDevice</usePurposes>
+  </forms>
+</mdclass:ExternalDataProcessor>
