@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"log"
+	"os"
+
 	"github.com/gorilla/mux"
 	//"github.com/gorilla/sessions"
 	"encoding/base64"
@@ -84,6 +87,9 @@ type ViewData struct {
 	Customers map[string]Customer_struct
 }
 
+var InfoLogger *log.Logger
+var ErrorLogger *log.Logger
+
 func GenerateId() string {
 	b := make([]byte, 16)
 	rand.Read(b)
@@ -94,6 +100,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	t, err := template.ParseFiles("templates/main_page.html", "templates/header.html")
 	if err != nil {
+		ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 		return
 	}
@@ -112,6 +119,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 		rows, err := database.Query("select * from cookie where id = $1", CookieGet.Value)
 		if err != nil {
+			ErrorLogger.Println(err.Error())
 			panic(err)
 		}
 		defer rows.Close()
@@ -121,6 +129,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 			p := cookie_base{}
 			err := rows.Scan(&p.id, &p.user)
 			if err != nil {
+				ErrorLogger.Println(err.Error())
 				fmt.Println(err)
 				continue
 			}
@@ -161,6 +170,7 @@ func add_change_customer(w http.ResponseWriter, r *http.Request) {
 
 	tmpl, err := template.ParseFiles("templates/add_change_customer.html", "templates/header.html")
 	if err != nil {
+		ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 		return
 	}
@@ -189,7 +199,7 @@ func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
 			customer_data.Customer_id, customer_data.Customer_name, customer_data.Customer_type, customer_data.Customer_email)
 
 		if err != nil {
-			//log.Println(err)
+			ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 		}
 		http.Redirect(w, r, "list_customer", 301)
@@ -205,6 +215,7 @@ func list_customer(w http.ResponseWriter, r *http.Request) {
 
 	tmpl, err := template.ParseFiles("templates/list_customer.html", "templates/header.html")
 	if err != nil {
+		ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 		return
 	}
@@ -215,6 +226,7 @@ func list_customer(w http.ResponseWriter, r *http.Request) {
 
 		rows, err := database.Query("select * from customer")
 		if err != nil {
+			ErrorLogger.Println(err.Error())
 			panic(err)
 		}
 		defer rows.Close()
@@ -224,6 +236,7 @@ func list_customer(w http.ResponseWriter, r *http.Request) {
 			p := Customer_struct{}
 			err := rows.Scan(&p.Customer_id, &p.Customer_name, &p.Customer_type, &p.Customer_email)
 			if err != nil {
+				ErrorLogger.Println(err.Error())
 				fmt.Println(err)
 				continue
 			}
@@ -264,6 +277,7 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 
 		rows, err := database.Query("select * from users where user = $1 and password = $2", username, password)
 		if err != nil {
+			ErrorLogger.Println(err.Error())
 			panic(err)
 		}
 		defer rows.Close()
@@ -273,6 +287,7 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 			p := users_base{}
 			err := rows.Scan(&p.user, &p.password)
 			if err != nil {
+				ErrorLogger.Println(err.Error())
 				fmt.Println(err)
 				continue
 			}
@@ -303,6 +318,7 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 		result, err := database.Exec("insert into cookie (id, user) values ($1, $2)",
 			idcookie, username)
 		if err != nil {
+			ErrorLogger.Println(err.Error())
 			panic(err)
 		}
 		fmt.Println(result.LastInsertId()) // id последнего добавленного объекта
@@ -330,6 +346,7 @@ func email_settings(w http.ResponseWriter, r *http.Request) {
 
 		tmpl, err := template.ParseFiles("mail_smtp/settings.html", "templates/header.html")
 		if err != nil {
+			ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 			return
 		}
@@ -438,6 +455,7 @@ func send_message(w http.ResponseWriter, r *http.Request) {
 		//[]byte("This is the email body."),
 	)
 	if err != nil {
+		ErrorLogger.Println(err.Error())
 		fmt.Fprint(w, "error"+err.Error())
 	} else {
 		http.Redirect(w, r, "/", 302)
@@ -455,7 +473,7 @@ func EditPage(w http.ResponseWriter, r *http.Request) {
 
 		err := row.Scan(&Customer_struct_out.Customer_id, &Customer_struct_out.Customer_name, &Customer_struct_out.Customer_type, &Customer_struct_out.Customer_email)
 		if err != nil {
-			//log.Println(err)
+			ErrorLogger.Println(err.Error())
 			http.Error(w, http.StatusText(404), http.StatusNotFound)
 		}
 
@@ -465,6 +483,7 @@ func EditPage(w http.ResponseWriter, r *http.Request) {
 
 	tmpl, err := template.ParseFiles("templates/edit.html", "templates/header.html")
 	if err != nil {
+		ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 		return
 	}
@@ -476,7 +495,7 @@ func EditPage(w http.ResponseWriter, r *http.Request) {
 func EditHandler(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
-		//log.Println(err)
+		ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 	}
 	customer_id := r.FormValue("customer_id")
@@ -489,7 +508,7 @@ func EditHandler(w http.ResponseWriter, r *http.Request) {
 			customer_name, customer_type, customer_email, customer_id)
 
 		if err != nil {
-			// log.Println(err)
+			ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 		}
 	} else {
@@ -511,7 +530,7 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	if type_memory_storage == "SQLit" {
 		_, err := database.Exec("delete from customer where customer_id = ?", id)
 		if err != nil {
-			//log.Println(err)
+			ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 		}
 	} else {
@@ -550,6 +569,7 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 
 	req, err := http.NewRequest("POST", urlReq, bytes.NewBuffer([]byte(soapQuery)))
 	if err != nil {
+		ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 	}
 
@@ -561,12 +581,14 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.Do(req)
 	if err != nil {
+		ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 	}
 
@@ -630,6 +652,7 @@ func initDB() {
 	sql_query := "create table customer (customer_id text primary key, customer_name text, customer_type text, customer_email text);"
 	_, err := database.Exec(sql_query)
 	if err != nil {
+		ErrorLogger.Println(err.Error())
 		fmt.Println("can't create table : " + err.Error())
 	}
 
@@ -641,6 +664,7 @@ func initDB() {
 	sql_query = "create table cookie (id text primary key, user text);"
 	_, err = database.Exec(sql_query)
 	if err != nil {
+		ErrorLogger.Println(err.Error())
 		fmt.Println("can't create table : " + err.Error())
 	}
 
@@ -652,6 +676,7 @@ func initDB() {
 	sql_query = "create table users (user text primary key, password text);"
 	_, err = database.Exec(sql_query)
 	if err != nil {
+		ErrorLogger.Println(err.Error())
 		fmt.Println("can't create table : " + err.Error())
 	}
 
@@ -674,6 +699,7 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 
 			rows, err := database.Query("select * from customer")
 			if err != nil {
+				ErrorLogger.Println(err.Error())
 				panic(err)
 			}
 			defer rows.Close()
@@ -683,6 +709,7 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 				p := Customer_struct{}
 				err := rows.Scan(&p.Customer_id, &p.Customer_name, &p.Customer_type, &p.Customer_email)
 				if err != nil {
+					ErrorLogger.Println(err.Error())
 					fmt.Println(err)
 					continue
 				}
@@ -694,6 +721,7 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 
 			userVar2, err := json.Marshal(customer_map_s)
 			if err != nil {
+				ErrorLogger.Println(err.Error())
 				fmt.Fprintf(w, "error json:"+err.Error())
 			}
 			fmt.Fprintf(w, string(userVar2))
@@ -701,6 +729,7 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 		} else {
 			userVar2, err := json.Marshal(customer_map)
 			if err != nil {
+				ErrorLogger.Println(err.Error())
 				fmt.Fprintf(w, "error json:"+err.Error())
 			}
 			fmt.Fprintf(w, string(userVar2))
@@ -710,6 +739,7 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
+			ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 		}
 
@@ -718,6 +748,7 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 
 		err = json.Unmarshal(body, &customer_map_json)
 		if err != nil {
+			ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 		}
 
@@ -731,6 +762,7 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 
 				err := row.Scan(&count)
 				if err != nil {
+					ErrorLogger.Println(err.Error())
 					fmt.Fprintf(w, err.Error())
 				}
 
@@ -740,6 +772,7 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 						p.Customer_id, p.Customer_name, p.Customer_type, p.Customer_email)
 
 					if err != nil {
+						ErrorLogger.Println(err.Error())
 						fmt.Fprintf(w, err.Error())
 					}
 				} else {
@@ -747,6 +780,7 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 						p.Customer_name, p.Customer_type, p.Customer_email, p.Customer_id)
 
 					if err != nil {
+						ErrorLogger.Println(err.Error())
 						fmt.Fprintf(w, err.Error())
 					}
 				}
@@ -764,7 +798,22 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func initLog() {
+	file, err := os.OpenFile("./logs/logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		ErrorLogger.Println(err.Error())
+		log.Fatal(err)
+	}
+
+	InfoLogger = log.New(file, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+	ErrorLogger = log.New(file, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
+
+	InfoLogger.Println("Starting the application...")
+}
+
 func main() {
+
+	initLog()
 
 	type_memory_storage_flag := flag.String("type_memory_storage", "", "type storage data")
 	flag.Parse()
@@ -783,6 +832,7 @@ func main() {
 		db, err := sql.Open("sqlite3", "./bd/SQLit/base_sqlit.db")
 
 		if err != nil {
+			ErrorLogger.Println(err.Error())
 			panic(err)
 		}
 		database = db
