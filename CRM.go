@@ -834,7 +834,8 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 		// 	}
 		// }
 
-		if type_memory_storage == "SQLit" {
+		switch type_memory_storage {
+		case "SQLit":
 
 			var customer_map_s = make(map[string]Customer_struct)
 
@@ -867,7 +868,50 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 			}
 			fmt.Fprintf(w, string(userVar2))
 
-		} else {
+		case "MongoDB":
+
+			var customer_map_s = make(map[string]Customer_struct)
+
+			cur, err := collectionMongoDB.Find(context.Background(), bson.D{})
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+			}
+			defer cur.Close(context.Background())
+
+			Customer_struct_slice := []Customer_struct{}
+
+			for cur.Next(context.Background()) {
+
+				Customer_struct_out := Customer_struct{}
+
+				err := cur.Decode(&Customer_struct_out)
+				if err != nil {
+					ErrorLogger.Println(err.Error())
+				}
+
+				Customer_struct_slice = append(Customer_struct_slice, Customer_struct_out)
+
+				// To get the raw bson bytes use cursor.Current
+				// // raw := cur.Current
+				// // fmt.Println(raw)
+				// do something with raw...
+			}
+			if err := cur.Err(); err != nil {
+				ErrorLogger.Println(err.Error())
+			}
+
+			for _, p := range Customer_struct_slice {
+				customer_map_s[p.Customer_id] = p
+			}
+
+			userVar2, err := json.Marshal(customer_map_s)
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+				fmt.Fprintf(w, "error json:"+err.Error())
+			}
+			fmt.Fprintf(w, string(userVar2))
+
+		default:
 			userVar2, err := json.Marshal(customer_map)
 			if err != nil {
 				ErrorLogger.Println(err.Error())
@@ -893,7 +937,8 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, err.Error())
 		}
 
-		if type_memory_storage == "SQLit" {
+		switch type_memory_storage {
+		case "SQLit":
 
 			var count int
 
@@ -927,7 +972,23 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-		} else {
+		case "MongoDB":
+
+			ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+
+			//maybe use? insertMany(): добавляет несколько документов
+			//before adding find db.users.find()
+
+			for _, p := range customer_map_json {
+				insertResult, err := collectionMongoDB.InsertOne(ctx, p)
+				if err != nil {
+					ErrorLogger.Println(err.Error())
+					panic(err)
+				}
+				fmt.Println(insertResult.InsertedID)
+			}
+
+		default:
 			for _, p := range customer_map_json {
 				customer_map[p.Customer_id] = p
 			}
@@ -936,23 +997,6 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, string(body))
 
 	}
-
-	// use this for JSON API
-	// var Customer_struct_slice []Customer_struct
-	// ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	// cursor, err := collectionMongoDB.Find(ctx, bson.M{"customer_id": bson.D{{"$eq", id}}})
-	// if err != nil {
-	// 	ErrorLogger.Println(err.Error())
-	// 	http.Error(w, http.StatusText(404), http.StatusNotFound)
-	// }
-	// if err = cursor.All(ctx, &Customer_struct_slice); err != nil {
-	// 	ErrorLogger.Println(err.Error())
-	// 	http.Error(w, http.StatusText(404), http.StatusNotFound)
-	// }
-
-	// for _, p := range Customer_struct_slice {
-	// 	Customer_struct_out = p
-	// }
 
 }
 
