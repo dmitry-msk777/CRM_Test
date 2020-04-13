@@ -27,7 +27,14 @@ import (
 
 	"regexp"
 
+	"context"
+
 	_ "github.com/mattn/go-sqlite3"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 type Customer_struct struct {
@@ -35,6 +42,14 @@ type Customer_struct struct {
 	Customer_name  string
 	Customer_type  string
 	Customer_email string
+}
+
+type Customer_struct_bson struct {
+	ID             primitive.ObjectID `bson:"_id,omitempty"`
+	Customer_id    string             `bson:"Customer_id,omitempty"`
+	Customer_name  string             `bson:"Customer_name,omitempty"`
+	Customer_type  string             `bson:"Customer_type,omitempty"`
+	Customer_email string             `bson:"Customer_email,omitempty"`
 }
 
 type users_base struct {
@@ -69,6 +84,8 @@ type Envelope struct {
 
 var database *sql.DB
 
+var collectionMongoDB *mongo.Collection
+
 var customer_map = make(map[string]Customer_struct)
 
 var cookiemap = make(map[string]string)
@@ -94,6 +111,28 @@ func GenerateId() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return fmt.Sprintf("%x", b)
+}
+
+func GetCollectionMongoBD() *mongo.Collection {
+
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:32768")
+	client, err := mongo.NewClient(clientOptions)
+	if err != nil {
+		ErrorLogger.Println(err.Error())
+	}
+	err = client.Connect(context.Background())
+	if err != nil {
+		ErrorLogger.Println(err.Error())
+	}
+
+	err = client.Ping(context.TODO(), readpref.Primary())
+	if err != nil {
+		ErrorLogger.Println("Couldn't connect to the database", err.Error())
+	} else {
+		InfoLogger.Println("Connected MongoDB!")
+	}
+
+	return client.Database("CRM").Collection("customers")
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
@@ -186,6 +225,7 @@ func encodeRFC2047(String string) string {
 }
 
 func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
+
 	customer_data := Customer_struct{
 		Customer_name:  r.FormValue("customer_name"),
 		Customer_id:    r.FormValue("customer_id"),
@@ -193,7 +233,8 @@ func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
 		Customer_email: r.FormValue("customer_email"),
 	}
 
-	if type_memory_storage == "SQLit" {
+	switch type_memory_storage {
+	case "SQLit":
 
 		_, err := database.Exec("insert into customer (customer_id, customer_name, customer_type, customer_email) values (?, ?, ?, ?)",
 			customer_data.Customer_id, customer_data.Customer_name, customer_data.Customer_type, customer_data.Customer_email)
@@ -204,7 +245,29 @@ func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Redirect(w, r, "list_customer", 301)
 
-	} else {
+	case "MongoDB":
+
+		// // tutorial https://www.mongodb.com/blog/post/quick-start-golang--mongodb--modeling-documents-with-go-data-structures
+		// // insert one document
+		// customer_data := Customer_struct{
+		// 	Customer_name:  "customer_name_test",
+		// 	Customer_id:    "customer_id_test",
+		// 	Customer_type:  "customer_type_test",
+		// 	Customer_email: "customer_email_test",
+		// }
+
+		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+
+		//maybe use? insertMany(): добавляет несколько документов
+		//before adding find db.users.find()
+		insertResult, err := collectionMongoDB.InsertOne(ctx, customer_data)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			panic(err)
+		}
+		fmt.Println(insertResult.InsertedID)
+
+	default:
 		customer_map[r.FormValue("customer_id")] = customer_data
 	}
 
@@ -220,7 +283,8 @@ func list_customer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if type_memory_storage == "SQLit" {
+	switch type_memory_storage {
+	case "SQLit":
 
 		var customer_map_s = make(map[string]Customer_struct)
 
@@ -247,17 +311,48 @@ func list_customer(w http.ResponseWriter, r *http.Request) {
 		}
 
 		tmpl.ExecuteTemplate(w, "list_customer", customer_map_s)
-	} else {
+
+	case "MongoDB":
+
+		var customer_map_s = make(map[string]Customer_struct)
+
+		cur, err := collectionMongoDB.Find(context.Background(), bson.D{})
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+		}
+		defer cur.Close(context.Background())
+
+		Customer_struct_slice := []Customer_struct{}
+
+		for cur.Next(context.Background()) {
+
+			Customer_struct_out := Customer_struct{}
+
+			err := cur.Decode(&Customer_struct_out)
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+			}
+
+			Customer_struct_slice = append(Customer_struct_slice, Customer_struct_out)
+
+			// To get the raw bson bytes use cursor.Current
+			// // raw := cur.Current
+			// // fmt.Println(raw)
+			// do something with raw...
+		}
+		if err := cur.Err(); err != nil {
+			ErrorLogger.Println(err.Error())
+		}
+
+		for _, p := range Customer_struct_slice {
+			customer_map_s[p.Customer_id] = p
+		}
+
+		tmpl.ExecuteTemplate(w, "list_customer", customer_map_s)
+
+	default:
 		tmpl.ExecuteTemplate(w, "list_customer", customer_map)
 	}
-
-	// data := ViewData{
-	// 	Title:     "list customer",
-	// 	Message:   "list customer below",
-	// 	Customers: customer_map,
-	// }
-
-	//tmpl.ExecuteTemplate(w, "list_customer", data)
 
 }
 
@@ -468,7 +563,9 @@ func EditPage(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 
 	Customer_struct_out := Customer_struct{}
-	if type_memory_storage == "SQLit" {
+	switch type_memory_storage {
+	case "SQLit":
+
 		row := database.QueryRow("select * from customer where customer_id = ?", id)
 
 		err := row.Scan(&Customer_struct_out.Customer_id, &Customer_struct_out.Customer_name, &Customer_struct_out.Customer_type, &Customer_struct_out.Customer_email)
@@ -477,7 +574,19 @@ func EditPage(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, http.StatusText(404), http.StatusNotFound)
 		}
 
-	} else {
+	case "MongoDB":
+
+		err := collectionMongoDB.FindOne(context.TODO(), bson.D{{"customer_id", id}}).Decode(&Customer_struct_out)
+		if err != nil {
+			// ErrNoDocuments means that the filter did not match any documents in the collection
+			if err == mongo.ErrNoDocuments {
+				return
+			}
+			log.Fatal(err)
+		}
+		fmt.Printf("found document %v", Customer_struct_out)
+
+	default:
 		Customer_struct_out = customer_map[id]
 	}
 
@@ -503,7 +612,9 @@ func EditHandler(w http.ResponseWriter, r *http.Request) {
 	customer_type := r.FormValue("customer_type")
 	customer_email := r.FormValue("customer_email")
 
-	if type_memory_storage == "SQLit" {
+	switch type_memory_storage {
+	case "SQLit":
+
 		_, err = database.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
 			customer_name, customer_type, customer_email, customer_id)
 
@@ -511,7 +622,27 @@ func EditHandler(w http.ResponseWriter, r *http.Request) {
 			ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 		}
-	} else {
+
+	case "MongoDB":
+
+		opts := options.Update().SetUpsert(true)
+		filter := bson.D{{"customer_id", customer_id}}
+		update := bson.D{{"$set", bson.D{{"customer_name", customer_name}, {"customer_type", customer_type}, {"customer_email", customer_email}}}}
+
+		result, err := collectionMongoDB.UpdateOne(context.TODO(), filter, update, opts)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, err.Error())
+		}
+
+		if result.MatchedCount != 0 {
+			fmt.Println("matched and replaced an existing document")
+		}
+		if result.UpsertedCount != 0 {
+			fmt.Printf("inserted a new document with ID %v\n", result.UpsertedID)
+		}
+
+	default:
 		Customer_struct_out := Customer_struct{}
 		Customer_struct_out.Customer_id = customer_id
 		Customer_struct_out.Customer_name = customer_name
@@ -520,6 +651,7 @@ func EditHandler(w http.ResponseWriter, r *http.Request) {
 
 		customer_map[customer_id] = Customer_struct_out
 	}
+
 	http.Redirect(w, r, "/list_customer", 301)
 }
 
@@ -527,13 +659,22 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	if type_memory_storage == "SQLit" {
+	switch type_memory_storage {
+	case "SQLit":
 		_, err := database.Exec("delete from customer where customer_id = ?", id)
 		if err != nil {
 			ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 		}
-	} else {
+	case "MongoDB":
+
+		res, err := collectionMongoDB.DeleteOne(context.TODO(), bson.D{{"customer_id", id}})
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+		}
+		fmt.Printf("deleted %v documents\n", res.DeletedCount)
+
+	default:
 		_, ok := customer_map[id]
 		if ok {
 			delete(customer_map, id)
@@ -541,13 +682,12 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/list_customer", 301)
+
 }
 
 func checkINN(w http.ResponseWriter, r *http.Request) {
 
 	customer_INN := r.URL.Query().Get("customer_INN")
-
-	// ////Work with SOAP "github.com/tiaguinho/gosoap"
 
 	client := &http.Client{}
 
@@ -562,6 +702,14 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 		  </req:NdsRequest2>
 	   </soapenv:Body>
 	</soapenv:Envelope>`)
+
+	// maybe consider opportunity using the package  https://github.com/beevik/etree
+	// to build and parse xml for SOAP
+	// below example
+	// doc := etree.NewDocument()
+	// if err := doc.ReadFromString(soapQuery); err != nil {
+	// 	panic(err)
+	// }
 
 	soapQuery = strings.Replace(soapQuery, "customer_INN", customer_INN, 1)
 
@@ -591,13 +739,6 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 		ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 	}
-
-	// don't understand how to create valid xml type map from an body xml
-	// res := &Envelope{}
-	// err = xml.Unmarshal(body, res)
-	// if err != nil {
-	// 	fmt.Fprintf(w, err.Error())
-	// }
 
 	fmt.Println(string(body))
 
@@ -640,7 +781,7 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func initDB() {
+func initDBSQLit() {
 
 	// CREATE TABLE "customer" (
 	// 	"customer_id"	TEXT NOT NULL,
@@ -796,6 +937,23 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 
 	}
 
+	// use this for JSON API
+	// var Customer_struct_slice []Customer_struct
+	// ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	// cursor, err := collectionMongoDB.Find(ctx, bson.M{"customer_id": bson.D{{"$eq", id}}})
+	// if err != nil {
+	// 	ErrorLogger.Println(err.Error())
+	// 	http.Error(w, http.StatusText(404), http.StatusNotFound)
+	// }
+	// if err = cursor.All(ctx, &Customer_struct_slice); err != nil {
+	// 	ErrorLogger.Println(err.Error())
+	// 	http.Error(w, http.StatusText(404), http.StatusNotFound)
+	// }
+
+	// for _, p := range Customer_struct_slice {
+	// 	Customer_struct_out = p
+	// }
+
 }
 
 func initLog() {
@@ -825,10 +983,10 @@ func main() {
 	}
 
 	//temporary
-	type_memory_storage = "SQLit"
+	type_memory_storage = "MongoDB"
 
-	if type_memory_storage == "SQLit" {
-
+	switch type_memory_storage {
+	case "SQLit":
 		db, err := sql.Open("sqlite3", "./bd/SQLit/base_sqlit.db")
 
 		if err != nil {
@@ -837,9 +995,14 @@ func main() {
 		}
 		database = db
 
-		initDB()
+		initDBSQLit()
 		defer db.Close()
-	} else {
+
+	case "MongoDB":
+
+		collectionMongoDB = GetCollectionMongoBD()
+
+	default:
 		users["admin"] = "admin"
 	}
 
