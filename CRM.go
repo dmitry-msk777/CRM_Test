@@ -82,6 +82,17 @@ type Envelope struct {
 	} `xml:"Body"`
 }
 
+type CustomerStruct_xmlRoot struct {
+	Customer_struct []CustomerStruct_xml `xml:"Customer_struct"`
+}
+
+type CustomerStruct_xml struct {
+	CustomerID    string `xml:"Customer_id"`
+	CustomerName  string `xml:"Customer_name"`
+	CustomerType  string `xml:"Customer_type"`
+	CustomerEmail string `xml:"Customer_email"`
+}
+
 var database *sql.DB
 
 var collectionMongoDB *mongo.Collection
@@ -823,7 +834,7 @@ func initDBSQLit() {
 
 }
 
-func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
+func Api_json(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == "GET" {
 
@@ -1000,6 +1011,189 @@ func connection_rest_1C(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func Api_xml(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method == "GET" {
+
+		switch type_memory_storage {
+		case "SQLit":
+
+			// var customer_map_s = make(map[string]Customer_struct)
+
+			// rows, err := database.Query("select * from customer")
+			// if err != nil {
+			// 	ErrorLogger.Println(err.Error())
+			// 	panic(err)
+			// }
+			// defer rows.Close()
+			// Customer_struct_s := []Customer_struct{}
+
+			// for rows.Next() {
+			// 	p := Customer_struct{}
+			// 	err := rows.Scan(&p.Customer_id, &p.Customer_name, &p.Customer_type, &p.Customer_email)
+			// 	if err != nil {
+			// 		ErrorLogger.Println(err.Error())
+			// 		fmt.Println(err)
+			// 		continue
+			// 	}
+			// 	Customer_struct_s = append(Customer_struct_s, p)
+			// }
+			// for _, p := range Customer_struct_s {
+			// 	customer_map_s[p.Customer_id] = p
+			// }
+
+			// userVar2, err := json.Marshal(customer_map_s)
+			// if err != nil {
+			// 	ErrorLogger.Println(err.Error())
+			// 	fmt.Fprintf(w, "error json:"+err.Error())
+			// }
+			// fmt.Fprintf(w, string(userVar2))
+
+		case "MongoDB":
+
+			var customer_map_s = make(map[string]Customer_struct)
+
+			cur, err := collectionMongoDB.Find(context.Background(), bson.D{})
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+			}
+			defer cur.Close(context.Background())
+
+			Customer_struct_slice := []Customer_struct{}
+
+			for cur.Next(context.Background()) {
+
+				Customer_struct_out := Customer_struct{}
+
+				err := cur.Decode(&Customer_struct_out)
+				if err != nil {
+					ErrorLogger.Println(err.Error())
+				}
+
+				Customer_struct_slice = append(Customer_struct_slice, Customer_struct_out)
+
+			}
+			if err := cur.Err(); err != nil {
+				ErrorLogger.Println(err.Error())
+			}
+
+			for _, p := range Customer_struct_slice {
+				customer_map_s[p.Customer_id] = p
+			}
+
+			// userVar2, err := json.Marshal(customer_map_s)
+			// if err != nil {
+			// 	ErrorLogger.Println(err.Error())
+			// 	fmt.Fprintf(w, "error json:"+err.Error())
+			// }
+			// fmt.Fprintf(w, string(userVar2))
+
+			xmlData, _ := xml.MarshalIndent(Customer_struct_slice, " ", "  ")
+			fmt.Fprintf(w, string(xmlData))
+
+			test_rez_slice := []CustomerStruct_xml{}
+			//var test_rez []Customer_struct
+			if err := xml.Unmarshal(xmlData, &test_rez_slice); err != nil {
+				panic(err)
+			}
+			fmt.Println(test_rez_slice)
+
+		default:
+			userVar2, err := json.Marshal(customer_map)
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+				fmt.Fprintf(w, "error json:"+err.Error())
+			}
+			fmt.Fprintf(w, string(userVar2))
+		}
+
+	} else {
+
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, err.Error())
+		}
+
+		var customer_map_json = make(map[string]Customer_struct)
+
+		err = json.Unmarshal(body, &customer_map_json)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, err.Error())
+		}
+
+		switch type_memory_storage {
+		case "SQLit":
+
+			// var count int
+
+			// for _, p := range customer_map_json {
+
+			// 	row := database.QueryRow("select COUNT(*) from customer where customer_id = ?", p.Customer_id)
+
+			// 	err := row.Scan(&count)
+			// 	if err != nil {
+			// 		ErrorLogger.Println(err.Error())
+			// 		fmt.Fprintf(w, err.Error())
+			// 	}
+
+			// 	if count == 0 {
+
+			// 		_, err = database.Exec("insert into customer (customer_id, customer_name, customer_type, customer_email) values (?, ?, ?, ?)",
+			// 			p.Customer_id, p.Customer_name, p.Customer_type, p.Customer_email)
+
+			// 		if err != nil {
+			// 			ErrorLogger.Println(err.Error())
+			// 			fmt.Fprintf(w, err.Error())
+			// 		}
+			// 	} else {
+			// 		_, err = database.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
+			// 			p.Customer_name, p.Customer_type, p.Customer_email, p.Customer_id)
+
+			// 		if err != nil {
+			// 			ErrorLogger.Println(err.Error())
+			// 			fmt.Fprintf(w, err.Error())
+			// 		}
+			// 	}
+			// }
+
+		case "MongoDB":
+
+			ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+
+			//maybe use? insertMany(): добавляет несколько документов
+			//before adding find db.users.find()
+
+			for _, p := range customer_map_json {
+				insertResult, err := collectionMongoDB.InsertOne(ctx, p)
+				if err != nil {
+					ErrorLogger.Println(err.Error())
+					panic(err)
+				}
+				fmt.Println(insertResult.InsertedID)
+			}
+
+			//	//	res := &Result{}
+			//	//string(contents_2)
+			//	//err2 := xml.Unmarshal(Res_test.Bytes(), res)
+			//	//	err2 := xml.Unmarshal(contents, res)
+			//	//	if err2 != nil {
+			//	//		fmt.Println("Error Unmarshal = ", err2.Error())
+			//	//	}
+
+		default:
+			for _, p := range customer_map_json {
+				customer_map[p.Customer_id] = p
+			}
+		}
+
+		fmt.Fprintf(w, string(body))
+
+	}
+
+}
+
 func initLog() {
 	file, err := os.OpenFile("./logs/logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
@@ -1085,7 +1279,8 @@ func main() {
 	router.HandleFunc("/edit/{id:[0-9]+}", EditHandler).Methods("POST")
 	router.HandleFunc("/delete/{id:[0-9]+}", DeleteHandler)
 
-	router.HandleFunc("/connection_rest_1C", connection_rest_1C)
+	router.HandleFunc("/api_json", Api_json)
+	router.HandleFunc("/api_xml", Api_xml)
 
 	// var dir string
 	// flag.StringVar(&dir, "dir", ".", "the directory to serve files from. Defaults to the current dir")
