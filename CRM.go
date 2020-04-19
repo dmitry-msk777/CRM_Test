@@ -29,6 +29,7 @@ import (
 
 	"context"
 
+	DBLocal "./bd" //add extermal go module.
 	_ "github.com/mattn/go-sqlite3"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -124,9 +125,9 @@ func GenerateId() string {
 	return fmt.Sprintf("%x", b)
 }
 
-func GetCollectionMongoBD() *mongo.Collection {
+func GetCollectionMongoBD(Database string, Collection string, HostConnect string) *mongo.Collection {
 
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:32768")
+	clientOptions := options.Client().ApplyURI(HostConnect)
 	client, err := mongo.NewClient(clientOptions)
 	if err != nil {
 		ErrorLogger.Println(err.Error())
@@ -143,7 +144,7 @@ func GetCollectionMongoBD() *mongo.Collection {
 		InfoLogger.Println("Connected MongoDB!")
 	}
 
-	return client.Database("CRM").Collection("customers")
+	return client.Database(Database).Collection(Collection)
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
@@ -1209,6 +1210,8 @@ func initLog() {
 
 func main() {
 
+	fmt.Println(DBLocal.Test(5))
+
 	initLog()
 
 	type_memory_storage_flag := flag.String("type_memory_storage", "", "type storage data")
@@ -1238,7 +1241,7 @@ func main() {
 
 	case "MongoDB":
 
-		collectionMongoDB = GetCollectionMongoBD()
+		collectionMongoDB = GetCollectionMongoBD("CRM", "customers", "mongodb://localhost:32768")
 
 	default:
 		users["admin"] = "admin"
