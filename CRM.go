@@ -45,6 +45,7 @@ type Customer_struct struct {
 	Customer_email string
 }
 
+// not use
 type Customer_struct_bson struct {
 	ID             primitive.ObjectID `bson:"_id,omitempty"`
 	Customer_id    string             `bson:"Customer_id,omitempty"`
@@ -372,6 +373,13 @@ func mainpage(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Index Page")
 }
 
+func RedirectToHTTPS(w http.ResponseWriter, r *http.Request) {
+
+	http.Redirect(w, r, "https://localhost:8182"+r.RequestURI,
+		http.StatusMovedPermanently)
+
+}
+
 func login(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "./login/login.html")
 }
@@ -444,7 +452,9 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, cookieHttp)
 
 	//fmt.Fprint(w, username+" "+password)
-	http.Redirect(w, r, "/", 302)
+	//http.Redirect(w, r, "/", 302)
+	http.Redirect(w, r, "http://localhost:8181/",
+		http.StatusMovedPermanently)
 }
 
 func email_settings(w http.ResponseWriter, r *http.Request) {
@@ -802,7 +812,7 @@ func initDBSQLit() {
 	// 	"customer_email"	TEXT,
 	// 	PRIMARY KEY("customer_id")
 	// );
-	sql_query := "create table customer (customer_id text primary key, customer_name text, customer_type text, customer_email text);"
+	sql_query := "create table if not exists customer (customer_id text primary key, customer_name text, customer_type text, customer_email text);"
 	_, err := database.Exec(sql_query)
 	if err != nil {
 		ErrorLogger.Println(err.Error())
@@ -814,7 +824,7 @@ func initDBSQLit() {
 	// 	"user"	TEXT,
 	// 	PRIMARY KEY("id")
 	// );
-	sql_query = "create table cookie (id text primary key, user text);"
+	sql_query = "create table if not exists cookie (id text primary key, user text);"
 	_, err = database.Exec(sql_query)
 	if err != nil {
 		ErrorLogger.Println(err.Error())
@@ -826,7 +836,7 @@ func initDBSQLit() {
 	// 	"password"	TEXT,
 	// 	PRIMARY KEY("user")
 	// );
-	sql_query = "create table users (user text primary key, password text);"
+	sql_query = "create table if not exists users (user text primary key, password text);"
 	_, err = database.Exec(sql_query)
 	if err != nil {
 		ErrorLogger.Println(err.Error())
@@ -1208,9 +1218,16 @@ func initLog() {
 	InfoLogger.Println("Starting the application...")
 }
 
+func infoTeam(rw http.ResponseWriter, r *http.Request) {
+
+	fmt.Println("Main Page")
+	//rw.Header().Set(" Server in Golang")
+	rw.Write([]byte("Service (Golang Server)\nTeam Members:\n Agha Assad\n"))
+}
+
 func main() {
 
-	fmt.Println(DBLocal.Test(5))
+	//fmt.Println(DBLocal.Test(5))
 
 	initLog()
 
@@ -1218,13 +1235,13 @@ func main() {
 	flag.Parse()
 
 	if *type_memory_storage_flag == "" {
-		type_memory_storage = "global_variable"
+		//type_memory_storage = "global_variable"
+
+		//temporary
+		type_memory_storage = "MongoDB_"
 	} else {
 		type_memory_storage = *type_memory_storage_flag
 	}
-
-	//temporary
-	type_memory_storage = "MongoDB"
 
 	switch type_memory_storage {
 	case "SQLit":
@@ -1241,7 +1258,9 @@ func main() {
 
 	case "MongoDB":
 
-		collectionMongoDB = GetCollectionMongoBD("CRM", "customers", "mongodb://localhost:32768")
+		//temporary
+		//collectionMongoDB = GetCollectionMongoBD("CRM", "customers", "mongodb://localhost:32768")
+		collectionMongoDB = DBLocal.GetCollectionMongoBD("CRM", "customers", "mongodb://localhost:32768")
 
 	default:
 		users["admin"] = "admin"
@@ -1269,8 +1288,9 @@ func main() {
 
 	router.HandleFunc("/mainpage", mainpage)
 
-	router.HandleFunc("/login", login)
-	router.HandleFunc("/loginPost", loginPost)
+	// replace to HTTPS router
+	router.HandleFunc("/login", RedirectToHTTPS)
+	router.HandleFunc("/loginPost", RedirectToHTTPS)
 
 	router.HandleFunc("/email_settings", email_settings)
 	//router.HandleFunc("/email_settingsPost", email_settingsPost)
@@ -1293,9 +1313,17 @@ func main() {
 	//Работает
 	router.PathPrefix("/js").Handler(http.StripPrefix("/js", http.FileServer(http.Dir("./js/"))))
 
-	http.Handle("/", router)
+	router_HTTPS := mux.NewRouter()
+	router_HTTPS.HandleFunc("/login", login)
+	router_HTTPS.HandleFunc("/loginPost", loginPost)
 
-	fmt.Println("Server is listening777...")
+	httpsMux := http.NewServeMux()
+	//httpsMux.Handle("/", http.HandlerFunc(infoTeam))
+	httpsMux.Handle("/", router_HTTPS)
+	go http.ListenAndServeTLS(":8182", "./Cert/cert.pem", "./Cert/key.pem", httpsMux)
+
+	http.Handle("/", router)
 	http.ListenAndServe(":8181", nil)
+	fmt.Println("Server is listening777...")
 
 }
