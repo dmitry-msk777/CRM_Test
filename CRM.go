@@ -7,13 +7,16 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"log"
 	"os"
 
+	"github.com/go-redis/redis/v7"
 	"github.com/gorilla/mux"
+
 	//"github.com/gorilla/sessions"
 	"encoding/base64"
 	"net/mail"
@@ -98,6 +101,8 @@ type CustomerStruct_xml struct {
 var database *sql.DB
 
 var collectionMongoDB *mongo.Collection
+
+var RedisClient *redis.Client
 
 var customer_map = make(map[string]Customer_struct)
 
@@ -933,6 +938,49 @@ func Api_json(w http.ResponseWriter, r *http.Request) {
 			}
 			fmt.Fprintf(w, string(userVar2))
 
+		case "Redis":
+
+			var customer_map_s = make(map[string]Customer_struct)
+			Customer_struct_slice := []Customer_struct{}
+
+			// find a function that gets all the keys to Reddit
+			i := 0
+			for {
+				p := Customer_struct{}
+				IDString := strconv.FormatInt(int64(i), 10)
+				val2, err := RedisClient.Get(IDString).Result()
+				if err == redis.Nil {
+					//fmt.Println("key2 does not exist")
+				} else if err != nil {
+					panic(err)
+				} else {
+					fmt.Println("key2", val2)
+
+					err = json.Unmarshal([]byte(val2), &p)
+					if err != nil {
+						ErrorLogger.Println(err.Error())
+						fmt.Fprintf(w, err.Error())
+					}
+
+					Customer_struct_slice = append(Customer_struct_slice, p)
+				}
+				i++
+				if i > 1000 {
+					break
+				}
+			}
+
+			for _, p := range Customer_struct_slice {
+				customer_map_s[p.Customer_id] = p
+			}
+
+			userVar2, err := json.Marshal(customer_map_s)
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+				fmt.Fprintf(w, "error json:"+err.Error())
+			}
+			fmt.Fprintf(w, string(userVar2))
+
 		default:
 			userVar2, err := json.Marshal(customer_map)
 			if err != nil {
@@ -1008,6 +1056,23 @@ func Api_json(w http.ResponseWriter, r *http.Request) {
 					panic(err)
 				}
 				fmt.Println(insertResult.InsertedID)
+			}
+
+		case "Redis":
+
+			for _, p := range customer_map_json {
+
+				userVar2, err := json.Marshal(p)
+				if err != nil {
+					ErrorLogger.Println(err.Error())
+					fmt.Fprintf(w, "error json:"+err.Error())
+				}
+
+				err = RedisClient.Set(p.Customer_id, string(userVar2), 0).Err()
+				if err != nil {
+					panic(err)
+				}
+
 			}
 
 		default:
@@ -1225,6 +1290,17 @@ func infoTeam(rw http.ResponseWriter, r *http.Request) {
 	rw.Write([]byte("Service (Golang Server)\nTeam Members:\n Agha Assad\n"))
 }
 
+func intiRedisClient(Addr string) *redis.Client {
+
+	client := redis.NewClient(&redis.Options{
+		Addr:     Addr,
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+
+	return client
+}
+
 func main() {
 
 	//fmt.Println(DBLocal.Test(5))
@@ -1238,7 +1314,7 @@ func main() {
 		//type_memory_storage = "global_variable"
 
 		//temporary
-		type_memory_storage = "MongoDB_"
+		type_memory_storage = "Redis"
 	} else {
 		type_memory_storage = *type_memory_storage_flag
 	}
@@ -1255,6 +1331,16 @@ func main() {
 
 		initDBSQLit()
 		defer db.Close()
+
+	case "Redis":
+
+		RedisClient = intiRedisClient("localhost:32773")
+
+		pong, err := RedisClient.Ping().Result()
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(pong, err)
 
 	case "MongoDB":
 
