@@ -39,6 +39,13 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
+
+	//"github.com/prometheus/client_golang/prometheus"
+	//"github.com/prometheus/client_golang/prometheus/promauto"
+	//"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Customer_struct struct {
@@ -103,6 +110,9 @@ var database *sql.DB
 var collectionMongoDB *mongo.Collection
 
 var RedisClient *redis.Client
+
+var CRM_Counter_Prometheus prometheus.Counter
+var CRM_Counter_Gauge prometheus.Gauge
 
 var customer_map = make(map[string]Customer_struct)
 
@@ -293,6 +303,9 @@ func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
 }
 
 func list_customer(w http.ResponseWriter, r *http.Request) {
+
+	//2
+	CRM_Counter_Gauge.Set(float64(5)) // or: Inc(), Dec(), Add(5), Dec(5),
 
 	tmpl, err := template.ParseFiles("templates/list_customer.html", "templates/header.html")
 	if err != nil {
@@ -852,6 +865,9 @@ func initDBSQLit() {
 
 func Api_json(w http.ResponseWriter, r *http.Request) {
 
+	//1
+	CRM_Counter_Prometheus.Inc()
+
 	if r.Method == "GET" {
 
 		// // get parametrs from get-http
@@ -1301,6 +1317,20 @@ func intiRedisClient(Addr string) *redis.Client {
 	return client
 }
 
+func initPrometheus() {
+	CRM_Counter_Prometheus = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "CRM_Counter",
+		})
+	prometheus.MustRegister(CRM_Counter_Prometheus)
+
+	CRM_Counter_Gauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "CRM_Gauge",
+		})
+	prometheus.MustRegister(CRM_Counter_Gauge)
+}
+
 func main() {
 
 	//fmt.Println(DBLocal.Test(5))
@@ -1404,9 +1434,14 @@ func main() {
 	router_HTTPS.HandleFunc("/loginPost", loginPost)
 
 	httpsMux := http.NewServeMux()
-	//httpsMux.Handle("/", http.HandlerFunc(infoTeam))
 	httpsMux.Handle("/", router_HTTPS)
 	go http.ListenAndServeTLS(":8182", "./Cert/cert.pem", "./Cert/key.pem", httpsMux)
+
+	initPrometheus()
+
+	httpPrometheus := http.NewServeMux()
+	httpPrometheus.Handle("/metrics", promhttp.Handler())
+	go http.ListenAndServe(":8183", httpPrometheus)
 
 	http.Handle("/", router)
 	http.ListenAndServe(":8181", nil)
