@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -40,12 +41,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 
-	//"github.com/prometheus/client_golang/prometheus"
-	//"github.com/prometheus/client_golang/prometheus/promauto"
-	//"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/olivere/elastic"
 )
 
 type Customer_struct struct {
@@ -228,9 +227,172 @@ func user(w http.ResponseWriter, r *http.Request) {
 }
 
 func get_customer(w http.ResponseWriter, r *http.Request) {
-	customer_id := r.URL.Query().Get("customer_id")
-	fmt.Fprintf(w, "customer_id: %s customer_name: %s", customer_map[customer_id].Customer_id,
-		customer_map[customer_id].Customer_name)
+
+	customer_id_for_find := r.URL.Query().Get("customer_id")
+
+	switch type_memory_storage {
+	case "SQLit":
+		fmt.Fprintf(w, "function not implemented for SQLit")
+	case "MongoDB":
+
+		cur, err := collectionMongoDB.Find(context.Background(), bson.D{})
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+		}
+		defer cur.Close(context.Background())
+
+		Customer_struct_slice := []Customer_struct{}
+
+		for cur.Next(context.Background()) {
+
+			Customer_struct_out := Customer_struct{}
+
+			err := cur.Decode(&Customer_struct_out)
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+			}
+
+			Customer_struct_slice = append(Customer_struct_slice, Customer_struct_out)
+
+		}
+
+		if err := cur.Err(); err != nil {
+			ErrorLogger.Println(err.Error())
+		}
+
+		//ElasticSerch
+
+		clientElasticSerch, err := elastic.NewClient(elastic.SetSniff(false),
+			elastic.SetURL("http://127.0.0.1:32771", "http://127.0.0.1:32770"))
+		// elastic.SetBasicAuth("user", "secret"))
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+
+		exists, err := clientElasticSerch.IndexExists("crm_customer").Do(context.Background()) //twitter
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+
+		if !exists {
+			// Create a new index.
+			mapping := `
+				{
+					"settings":{
+						"number_of_shards":1,
+						"number_of_replicas":0
+					},
+					"mappings":{
+						"doc":{
+							"properties":{
+								"Customer_name":{
+									"type":"text"
+								},
+								"Customer_id":{
+									"type":"text",
+									"store": true,
+									"fielddata": true
+								},
+								"Customer_type":{
+									"type":"text"
+								},
+								"Customer_email":{
+									"type":"text"
+								}
+						}
+					}
+				}
+				}`
+
+			//createIndex, err := clientElasticSerch.CreateIndex("crm_customer").Body(mapping).IncludeTypeName(true).Do(context.Background())
+			createIndex, err := clientElasticSerch.CreateIndex("crm_customer").Body(mapping).Do(context.Background())
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+				fmt.Fprintf(w, err.Error())
+				return
+			}
+			if !createIndex.Acknowledged {
+			}
+		}
+
+		for _, p := range Customer_struct_slice {
+
+			put1, err := clientElasticSerch.Index().
+				Index("crm_customer").
+				Type("doc").
+				Id(p.Customer_id).
+				BodyJson(p).
+				Do(context.Background())
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+				fmt.Fprintf(w, err.Error())
+				return
+			}
+			fmt.Printf("Indexed tweet %s to index %s, type %s\n", put1.Id, put1.Index, put1.Type)
+
+		}
+
+		// Flush to make sure the documents got written.
+		_, err = clientElasticSerch.Flush().Index("crm_customer").Do(context.Background())
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+
+		// Search with a term query
+		termQuery := elastic.NewTermQuery("Customer_id", customer_id_for_find)
+		searchResult, err := clientElasticSerch.Search().
+			Index("crm_customer").     // search in index "crm_customer"
+			Query(termQuery).          // specify the query
+			Sort("Customer_id", true). // sort by "user" field, ascending
+			From(0).Size(10).          // take documents 0-9
+			Pretty(true).              // pretty print request and response JSON
+			Do(context.Background())   // execute
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+
+		// searchResult is of type SearchResult and returns hits, suggestions,
+		// and all kinds of other information from Elasticsearch.
+		fmt.Printf("Query took %d milliseconds\n", searchResult.TookInMillis)
+
+		var ttyp Customer_struct
+		for _, item := range searchResult.Each(reflect.TypeOf(ttyp)) {
+			t := item.(Customer_struct)
+			fmt.Fprintf(w, "customer_id: %s customer_name: %s", t.Customer_id, t.Customer_name)
+		}
+
+		fmt.Printf("Found a total of %d tweets\n", searchResult.TotalHits())
+
+		// Delete an index.
+		deleteIndex, err := clientElasticSerch.DeleteIndex("crm_customer").Do(context.Background())
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+		if !deleteIndex.Acknowledged {
+			// Not acknowledged
+		}
+
+		//ElasticSerch
+
+	case "Redis":
+
+		fmt.Fprintf(w, "function not implemented for Redis")
+
+	default:
+		fmt.Fprintf(w, "customer_id: %s customer_name: %s", customer_map[customer_id_for_find].Customer_id,
+			customer_map[customer_id_for_find].Customer_name)
+	}
+
 }
 
 func add_change_customer(w http.ResponseWriter, r *http.Request) {
@@ -1344,7 +1506,7 @@ func main() {
 		//type_memory_storage = "global_variable"
 
 		//temporary
-		type_memory_storage = "Redis"
+		type_memory_storage = "MongoDB"
 	} else {
 		type_memory_storage = *type_memory_storage_flag
 	}
@@ -1364,7 +1526,7 @@ func main() {
 
 	case "Redis":
 
-		RedisClient = intiRedisClient("localhost:32773")
+		RedisClient = intiRedisClient("localhost:32769")
 
 		pong, err := RedisClient.Ping().Result()
 		if err != nil {
