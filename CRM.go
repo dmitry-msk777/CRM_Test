@@ -45,6 +45,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/olivere/elastic"
+
+	"net"
+
+	pb "../CRM_Test/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/grpclog"
 )
 
 type Customer_struct struct {
@@ -138,6 +144,107 @@ func GenerateId() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return fmt.Sprintf("%x", b)
+}
+
+type server struct{}
+
+func (s *server) GET_List(ctx context.Context, in *pb.RequestGET) (*pb.ResponseGET, error) {
+
+	id := in.CustomerId
+
+	Customer_struct_out := Customer_struct{}
+	switch type_memory_storage {
+	case "SQLit":
+
+		// row := database.QueryRow("select * from customer where customer_id = ?", id)
+
+		// err := row.Scan(&Customer_struct_out.Customer_id, &Customer_struct_out.Customer_name, &Customer_struct_out.Customer_type, &Customer_struct_out.Customer_email)
+		// if err != nil {
+		// 	ErrorLogger.Println(err.Error())
+		// 	http.Error(w, http.StatusText(404), http.StatusNotFound)
+		// }
+
+	case "MongoDB":
+
+		err := collectionMongoDB.FindOne(context.TODO(), bson.D{{"customer_id", id}}).Decode(&Customer_struct_out)
+		if err != nil {
+			// ErrNoDocuments means that the filter did not match any documents in the collection
+			if err == mongo.ErrNoDocuments {
+				return &pb.ResponseGET{CustomerId: err.Error()}, nil
+			}
+			log.Fatal(err)
+		}
+		fmt.Printf("found document %v", Customer_struct_out)
+
+	default:
+		Customer_struct_out = customer_map[id]
+	}
+
+	response := &pb.ResponseGET{
+		CustomerId:    Customer_struct_out.Customer_id,
+		CustomerName:  Customer_struct_out.Customer_name,
+		CustomerType:  Customer_struct_out.Customer_type,
+		CustomerEmail: Customer_struct_out.Customer_email,
+	}
+
+	return response, nil
+}
+
+func (s *server) POST_List(ctx context.Context, in *pb.RequestPOST) (*pb.ResponsePOST, error) {
+
+	customer_id := in.CustomerId
+	customer_name := in.CustomerName
+	customer_type := in.CustomerType
+	customer_email := in.CustomerEmail
+
+	switch type_memory_storage {
+	case "SQLit":
+
+		// _, err = database.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
+		// 	customer_name, customer_type, customer_email, customer_id)
+
+		// if err != nil {
+		// 	ErrorLogger.Println(err.Error())
+		// 	fmt.Fprintf(w, err.Error())
+		// }
+
+	case "MongoDB":
+
+		opts := options.Update().SetUpsert(true)
+		filter := bson.D{{"customer_id", customer_id}}
+		update := bson.D{{"$set", bson.D{{"customer_name", customer_name}, {"customer_type", customer_type}, {"customer_email", customer_email}}}}
+
+		result, err := collectionMongoDB.UpdateOne(context.TODO(), filter, update, opts)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			//fmt.Fprintf(w, err.Error())
+			return &pb.ResponsePOST{CustomerId: err.Error()}, nil
+		}
+
+		if result.MatchedCount != 0 {
+			//fmt.Println("matched and replaced an existing document")
+			return &pb.ResponsePOST{CustomerId: "matched and replaced an existing document"}, nil
+		}
+		if result.UpsertedCount != 0 {
+			//fmt.Printf("inserted a new document with ID %v\n", result.UpsertedID)
+			return &pb.ResponsePOST{CustomerId: "inserted a new document with ID"}, nil
+		}
+
+	default:
+		// Customer_struct_out := Customer_struct{}
+		// Customer_struct_out.Customer_id = customer_id
+		// Customer_struct_out.Customer_name = customer_name
+		// Customer_struct_out.Customer_type = customer_type
+		// Customer_struct_out.Customer_email = customer_email
+
+		// customer_map[customer_id] = Customer_struct_out
+	}
+
+	// response = &pb.Response{
+	//     Message: output,
+	// }
+
+	return &pb.ResponsePOST{CustomerId: "True"}, nil
 }
 
 func GetCollectionMongoBD(Database string, Collection string, HostConnect string) *mongo.Collection {
@@ -1493,6 +1600,20 @@ func initPrometheus() {
 	prometheus.MustRegister(CRM_Counter_Gauge)
 }
 
+func initgRPC() {
+	listener, err := net.Listen("tcp", ":5300")
+
+	if err != nil {
+		grpclog.Fatalf("failed to listen: %v", err)
+	}
+
+	opts := []grpc.ServerOption{}
+	grpcServer := grpc.NewServer(opts...)
+
+	pb.RegisterCRMswapServer(grpcServer, &server{})
+	grpcServer.Serve(listener)
+}
+
 func main() {
 
 	//fmt.Println(DBLocal.Test(5))
@@ -1543,6 +1664,8 @@ func main() {
 	default:
 		users["admin"] = "admin"
 	}
+
+	go initgRPC()
 
 	router := mux.NewRouter()
 

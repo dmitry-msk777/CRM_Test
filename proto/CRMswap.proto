@@ -1,0 +1,31 @@
+syntax = "proto3";
+//protoc -I . CRMswap.proto --go_out=plugins=grpc:.
+
+package CRMswap;
+
+service CRMswap {
+    rpc GET_List(RequestGET) returns (ResponseGET) {}
+    rpc POST_List(RequestPOST) returns (ResponsePOST) {}
+}
+
+message RequestGET {
+    string Customer_id = 1;
+}
+
+message ResponseGET {
+    string Customer_id = 1;
+    string Customer_name = 2;
+    string Customer_type = 3;
+    string Customer_email = 4;
+}
+
+message ResponsePOST {
+    string Customer_id = 1;
+}
+
+message RequestPOST {
+    string Customer_id = 1;
+    string Customer_name = 2;
+    string Customer_type = 3;
+    string Customer_email = 4;
+}
