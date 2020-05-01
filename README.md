@@ -16,6 +16,8 @@ Used JSON API to get and write data.
 Uses HTML and some JavaScript.
 ### Mail
 Implemented the function of sending letters to the mail server
+### gRPC
+Used gRPC to get and write data.
 ### For Russian ERP system 1C
 Для системы 1С реализована обработка для интеграции, используя JSON API (GET, POST запросы)
 Так же есть реализация проверки контрагента в базе налоговой через HTTP
