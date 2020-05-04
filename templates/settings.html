@@ -4,25 +4,50 @@
 	<div>
 		<form role="form" method="POST" action="/settings">
 			<div>
-				<label>email</label>
-				{{if .User}}
-				<input type="text" class="form-control" id="email" name="email" value="{{.User}}"  /> <br><br>
+				<label>Mail_email</label>
+				{{if .Mail_email}}
+				<input type="text" class="form-control" id="Mail_email" name="Mail_email" value="{{.Mail_email}}"  /> <br><br>
 				{{else}}
-				<input type="text" class="form-control" id="email" name="email"/> <br><br>
+				<input type="text" class="form-control" id="Mail_email" name="Mail_email"/> <br><br>
 				{{end}}
 			</div>
 			<div>
-				<label>Password</label>
-				{{if .Message}}
-				<input type="password" class="form-control" id="password" name="password" value="{{.Message}}" /> <br><br>
+				<label>Mail_password</label>
+				{{if .Mail_password}}
+				<input type="password" class="form-control" id="Mail_password" name="Mail_password" value="{{.Mail_password}}" /> <br><br>
 				{{else}}
-				<input type="password" class="form-control" id="password" name="password"  /> <br><br>
+				<input type="password" class="form-control" id="Mail_password" name="Mail_password"  /> <br><br>
 				{{end}}
 			</div>
+
+			<div>
+				<label>Mail_smtpServer</label>
+				{{if .Mail_smtpServer}}
+				<input type="text" class="form-control" id="Mail_smtpServer" name="Mail_smtpServer" value="{{.Mail_smtpServer}}" /> <br><br>
+				{{else}}
+				<input type="text" class="form-control" id="Mail_smtpServer" name="Mail_smtpServer"  /> <br><br>
+				{{end}}
+			</div>
+
+			<div>
+				<label>AddressMongoBD</label>
+				{{if .AddressMongoBD}}
+				<input type="text" class="form-control" id="AddressMongoBD" name="AddressMongoBD" value="{{.AddressMongoBD}}" /> <br><br>
+				{{else}}
+				<input type="text" class="form-control" id="AddressMongoBD" name="AddressMongoBD"  /> <br><br>
+				{{end}}
+			</div>
+			<div>
+				<label>AddressRedis</label>
+				{{if .AddressRedis}}
+				<input type="text" class="form-control" id="AddressRedis" name="AddressRedis" value="{{.AddressRedis}}" /> <br><br>
+				{{else}}
+				<input type="text" class="form-control" id="AddressRedis" name="AddressRedis"  /> <br><br>
+				{{end}}
+			</div>
+
 			<div>
 				<label>DataBaseType</label>
-				 
-				
 				<select id="DataBaseType" name="DataBaseType" class="form-control">
 					{{if .DataBaseType}}
 					<option value="{{.DataBaseType}}">{{.DataBaseType}}</option>

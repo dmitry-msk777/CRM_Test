@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/rand"
 	"database/sql"
-	"flag"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -62,9 +61,15 @@ type EngineCRM struct {
 	Global_settings   Global_settings
 }
 
-func (EngineCRM *EngineCRM) SetDataBaseType(DataBaseType string) {
+func (EngineCRM *EngineCRM) SetSettings(Global_settings Global_settings) {
 
-	EngineCRM.DataBaseType = DataBaseType
+	EngineCRM.DataBaseType = Global_settings.DataBaseType
+	if Global_settings.DataBaseType == "" {
+		EngineCRM.DataBaseType = "DemoRegime"
+		Global_settingsV.DataBaseType = "DemoRegime"
+	}
+
+	EngineCRM.Global_settings = Global_settingsV
 
 }
 
@@ -90,12 +95,47 @@ func (EngineCRM *EngineCRM) InitDataBase() bool {
 		database = db
 		EngineCRMv.databaseSQLite = db
 
-		initDBSQLit()
-		//defer db.Close()
+		// CREATE TABLE "customer" (
+		// 	"customer_id"	TEXT NOT NULL,
+		// 	"customer_name"	TEXT,
+		// 	"customer_type"	TEXT,
+		// 	"customer_email"	TEXT,
+		// 	PRIMARY KEY("customer_id")
+		// );
+		sql_query := "create table if not exists customer (customer_id text primary key, customer_name text, customer_type text, customer_email text);"
+		_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Println("can't create table : " + err.Error())
+		}
+
+		// CREATE TABLE "cookie" (
+		// 	"id"	TEXT NOT NULL,
+		// 	"user"	TEXT,
+		// 	PRIMARY KEY("id")
+		// );
+		sql_query = "create table if not exists cookie (id text primary key, user text);"
+		_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Println("can't create table : " + err.Error())
+		}
+
+		// CREATE TABLE "users" (
+		// 	"user"	TEXT NOT NULL,
+		// 	"password"	TEXT,
+		// 	PRIMARY KEY("user")
+		// );
+		sql_query = "create table if not exists users (user text primary key, password text);"
+		_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Println("can't create table : " + err.Error())
+		}
 
 	case "Redis":
-
-		EngineCRMv.RedisClient = intiRedisClient("localhost:32769")
+		//localhost:32769
+		EngineCRMv.RedisClient = intiRedisClient(EngineCRMv.Global_settings.AddressRedis)
 
 		pong, err := EngineCRMv.RedisClient.Ping().Result()
 		if err != nil {
@@ -108,7 +148,8 @@ func (EngineCRM *EngineCRM) InitDataBase() bool {
 
 		//temporary
 		//collectionMongoDB = GetCollectionMongoBD("CRM", "customers", "mongodb://localhost:32768")
-		EngineCRMv.collectionMongoDB = DBLocal.GetCollectionMongoBD("CRM", "customers", "mongodb://localhost:32768")
+		//"mongodb://localhost:32768"
+		EngineCRMv.collectionMongoDB = DBLocal.GetCollectionMongoBD("CRM", "customers", EngineCRMv.Global_settings.AddressMongoBD)
 
 	default:
 		users["admin"] = "admin"
@@ -371,6 +412,36 @@ func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct
 	return ""
 }
 
+func (EngineCRM *EngineCRM) DeleteOneRow(DataBaseType string, id string) string {
+
+	switch DataBaseType {
+	case "SQLit":
+		_, err := EngineCRMv.databaseSQLite.Exec("delete from customer where customer_id = ?", id)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			return err.Error()
+		}
+	case "MongoDB":
+
+		res, err := EngineCRMv.collectionMongoDB.DeleteOne(context.TODO(), bson.D{{"customer_id", id}})
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+		}
+		fmt.Printf("deleted %v documents\n", res.DeletedCount)
+
+	case "Redis":
+
+	default:
+		_, ok := EngineCRMv.DemoDBmap[id]
+		if ok {
+			delete(EngineCRMv.DemoDBmap, id)
+		}
+	}
+
+	return ""
+
+}
+
 var EngineCRMv EngineCRM
 
 type Customer_struct struct {
@@ -381,20 +452,60 @@ type Customer_struct struct {
 }
 
 type Global_settings struct {
-	addressSQLite  string
-	addressMongoBD string
-	addressRedis   string
+	DataBaseType    string
+	Mail_smtpServer string
+	AddressMongoBD  string
+	AddressRedis    string
+	Mail_email      string
+	Mail_password   string
 }
 
 // need to implement
 func (GlobalSettings *Global_settings) SaveSettingsOnDisk() {
-	//EngineCRM.DataBaseType = DataBaseType
+
+	f, err := os.Create("./settings/config.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	JsonString, err := json.Marshal(Global_settingsV)
+	if err != nil {
+		ErrorLogger.Println(err.Error())
+		log.Fatal(err)
+	}
+
+	if _, err := f.Write(JsonString); err != nil {
+		f.Close() // ignore error; Write error takes precedence
+		log.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 // need to implement
 func (GlobalSettings *Global_settings) LoadSettingsFromDisk() {
-	//EngineCRM.DataBaseType = DataBaseType
+
+	file, err := os.OpenFile("./settings/config.json", os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	decoder := json.NewDecoder(file)
+	Settings := Global_settings{}
+	err = decoder.Decode(&Settings)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	Global_settingsV = Settings
+
+	if err := file.Close(); err != nil {
+		fmt.Println(err)
+	}
 }
+
+var Global_settingsV Global_settings
 
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -493,33 +604,7 @@ func (s *server) GET_List(ctx context.Context, in *pb.RequestGET) (*pb.ResponseG
 
 	id := in.CustomerId
 
-	Customer_struct_out := Customer_struct{}
-	switch type_memory_storage {
-	case "SQLit":
-
-		// row := database.QueryRow("select * from customer where customer_id = ?", id)
-
-		// err := row.Scan(&Customer_struct_out.Customer_id, &Customer_struct_out.Customer_name, &Customer_struct_out.Customer_type, &Customer_struct_out.Customer_email)
-		// if err != nil {
-		// 	ErrorLogger.Println(err.Error())
-		// 	http.Error(w, http.StatusText(404), http.StatusNotFound)
-		// }
-
-	case "MongoDB":
-
-		err := collectionMongoDB.FindOne(context.TODO(), bson.D{{"customer_id", id}}).Decode(&Customer_struct_out)
-		if err != nil {
-			// ErrNoDocuments means that the filter did not match any documents in the collection
-			if err == mongo.ErrNoDocuments {
-				return &pb.ResponseGET{CustomerId: err.Error()}, nil
-			}
-			log.Fatal(err)
-		}
-		fmt.Printf("found document %v", Customer_struct_out)
-
-	default:
-		Customer_struct_out = customer_map[id]
-	}
+	Customer_struct_out := EngineCRMv.FindOneRow(EngineCRMv.DataBaseType, id)
 
 	response := &pb.ResponseGET{
 		CustomerId:    Customer_struct_out.Customer_id,
@@ -533,57 +618,14 @@ func (s *server) GET_List(ctx context.Context, in *pb.RequestGET) (*pb.ResponseG
 
 func (s *server) POST_List(ctx context.Context, in *pb.RequestPOST) (*pb.ResponsePOST, error) {
 
-	customer_id := in.CustomerId
-	customer_name := in.CustomerName
-	customer_type := in.CustomerType
-	customer_email := in.CustomerEmail
-
-	switch type_memory_storage {
-	case "SQLit":
-
-		// _, err = database.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
-		// 	customer_name, customer_type, customer_email, customer_id)
-
-		// if err != nil {
-		// 	ErrorLogger.Println(err.Error())
-		// 	fmt.Fprintf(w, err.Error())
-		// }
-
-	case "MongoDB":
-
-		opts := options.Update().SetUpsert(true)
-		filter := bson.D{{"customer_id", customer_id}}
-		update := bson.D{{"$set", bson.D{{"customer_name", customer_name}, {"customer_type", customer_type}, {"customer_email", customer_email}}}}
-
-		result, err := collectionMongoDB.UpdateOne(context.TODO(), filter, update, opts)
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-			//fmt.Fprintf(w, err.Error())
-			return &pb.ResponsePOST{CustomerId: err.Error()}, nil
-		}
-
-		if result.MatchedCount != 0 {
-			//fmt.Println("matched and replaced an existing document")
-			return &pb.ResponsePOST{CustomerId: "matched and replaced an existing document"}, nil
-		}
-		if result.UpsertedCount != 0 {
-			//fmt.Printf("inserted a new document with ID %v\n", result.UpsertedID)
-			return &pb.ResponsePOST{CustomerId: "inserted a new document with ID"}, nil
-		}
-
-	default:
-		// Customer_struct_out := Customer_struct{}
-		// Customer_struct_out.Customer_id = customer_id
-		// Customer_struct_out.Customer_name = customer_name
-		// Customer_struct_out.Customer_type = customer_type
-		// Customer_struct_out.Customer_email = customer_email
-
-		// customer_map[customer_id] = Customer_struct_out
+	Customer_struct_out := Customer_struct{
+		Customer_id:    in.CustomerId,
+		Customer_name:  in.CustomerName,
+		Customer_type:  in.CustomerType,
+		Customer_email: in.CustomerEmail,
 	}
 
-	// response = &pb.Response{
-	//     Message: output,
-	// }
+	EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, Customer_struct_out)
 
 	return &pb.ResponsePOST{CustomerId: "True"}, nil
 }
@@ -991,33 +1033,26 @@ func settings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		data := ViewData{
-			Title:   "Test777",
-			Message: mass_settings[1],
-			User:    mass_settings[0],
-			//Correct double entry in selection form
-			DataBaseType: EngineCRMv.DataBaseType,
-			Customers:    nil,
-		}
+		tmpl.ExecuteTemplate(w, "settings", Global_settingsV)
 
-		tmpl.ExecuteTemplate(w, "settings", data)
-
-		// Add fill elements form from a global variable or database
-		// Add the ability to select an smtp-server or extract a server from an email address
-		//http.ServeFile(w, r, "./mail_smtp/settings.html")
 	} else {
-		email := r.FormValue("email")
-		password := r.FormValue("password")
-		//Correct double entry in selection form
-		DataBaseType := r.FormValue("DataBaseType")
 
-		//fmt.Fprint(w, email+"error auth user not find"+password)
+		mass_settings[0] = r.FormValue("email")
+		mass_settings[1] = r.FormValue("password")
 
-		mass_settings[0] = email
-		mass_settings[1] = password
-		EngineCRMv.SetDataBaseType(DataBaseType)
+		Global_settingsV.Mail_email = r.FormValue("Mail_email")
+		Global_settingsV.Mail_password = r.FormValue("Mail_password")
+		Global_settingsV.Mail_smtpServer = r.FormValue("Mail_smtpServer")
+		Global_settingsV.DataBaseType = r.FormValue("DataBaseType")
+
+		Global_settingsV.AddressMongoBD = r.FormValue("AddressMongoBD")
+		Global_settingsV.AddressRedis = r.FormValue("AddressRedis")
+
+		EngineCRMv.SetSettings(Global_settingsV)
 
 		EngineCRMv.InitDataBase()
+
+		Global_settingsV.SaveSettingsOnDisk()
 
 		http.Redirect(w, r, "/", 302)
 	}
@@ -1027,15 +1062,16 @@ func send_message(w http.ResponseWriter, r *http.Request) {
 
 	// Set up authentication information. https://yandex.ru/support/mail/mail-clients.html
 
-	smtpServer := "smtp.yandex.ru"
+	//smtpServer := "smtp.yandex.ru"
+	smtpServer := Global_settingsV.Mail_smtpServer
 	auth := smtp.PlainAuth(
 		"",
-		mass_settings[0],
-		mass_settings[1],
+		Global_settingsV.Mail_email,
+		Global_settingsV.Mail_password,
 		smtpServer,
 	)
 
-	from := mail.Address{"Test", mass_settings[0]}
+	from := mail.Address{"Test", Global_settingsV.Mail_email}
 	to := mail.Address{"test2", "dima-irk35@mail.ru"}
 	title := "Title"
 
@@ -1118,29 +1154,7 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	switch type_memory_storage {
-	case "SQLit":
-		_, err := database.Exec("delete from customer where customer_id = ?", id)
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-			fmt.Fprintf(w, err.Error())
-		}
-	case "MongoDB":
-
-		res, err := collectionMongoDB.DeleteOne(context.TODO(), bson.D{{"customer_id", id}})
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-		}
-		fmt.Printf("deleted %v documents\n", res.DeletedCount)
-
-	case "Redis":
-
-	default:
-		_, ok := customer_map[id]
-		if ok {
-			delete(customer_map, id)
-		}
-	}
+	EngineCRMv.DeleteOneRow(EngineCRMv.DataBaseType, id)
 
 	http.Redirect(w, r, "/list_customer", 301)
 
@@ -1238,48 +1252,6 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "некорректная дата (ранее 01.01.1991 или позднее текущей даты)")
 	default:
 		fmt.Fprintf(w, "Error find: "+result_check)
-	}
-
-}
-
-func initDBSQLit() {
-
-	// CREATE TABLE "customer" (
-	// 	"customer_id"	TEXT NOT NULL,
-	// 	"customer_name"	TEXT,
-	// 	"customer_type"	TEXT,
-	// 	"customer_email"	TEXT,
-	// 	PRIMARY KEY("customer_id")
-	// );
-	sql_query := "create table if not exists customer (customer_id text primary key, customer_name text, customer_type text, customer_email text);"
-	_, err := EngineCRMv.databaseSQLite.Exec(sql_query)
-	if err != nil {
-		ErrorLogger.Println(err.Error())
-		fmt.Println("can't create table : " + err.Error())
-	}
-
-	// CREATE TABLE "cookie" (
-	// 	"id"	TEXT NOT NULL,
-	// 	"user"	TEXT,
-	// 	PRIMARY KEY("id")
-	// );
-	sql_query = "create table if not exists cookie (id text primary key, user text);"
-	_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
-	if err != nil {
-		ErrorLogger.Println(err.Error())
-		fmt.Println("can't create table : " + err.Error())
-	}
-
-	// CREATE TABLE "users" (
-	// 	"user"	TEXT NOT NULL,
-	// 	"password"	TEXT,
-	// 	PRIMARY KEY("user")
-	// );
-	sql_query = "create table if not exists users (user text primary key, password text);"
-	_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
-	if err != nil {
-		ErrorLogger.Println(err.Error())
-		fmt.Println("can't create table : " + err.Error())
 	}
 
 }
@@ -1443,21 +1415,24 @@ func main() {
 
 	//fmt.Println(DBLocal.Test(5))
 
+	Global_settingsV.LoadSettingsFromDisk()
+	EngineCRMv.SetSettings(Global_settingsV)
+
 	initLog()
 
-	type_memory_storage_flag := flag.String("type_memory_storage", "", "type storage data")
-	flag.Parse()
+	// type_memory_storage_flag := flag.String("type_memory_storage", "", "type storage data")
+	// flag.Parse()
 
-	if *type_memory_storage_flag == "" {
-		type_memory_storage = "DemoRegime"
+	// if *type_memory_storage_flag == "" {
+	// 	type_memory_storage = "DemoRegime"
 
-		//temporary
-		type_memory_storage = "Redis"
-		EngineCRMv.SetDataBaseType("Redis")
-	} else {
-		type_memory_storage = *type_memory_storage_flag
-		EngineCRMv.SetDataBaseType(*type_memory_storage_flag)
-	}
+	// 	//temporary
+	// 	type_memory_storage = "Redis"
+	// 	EngineCRMv.SetDataBaseType("Redis")
+	// } else {
+	// 	type_memory_storage = *type_memory_storage_flag
+	// 	EngineCRMv.SetDataBaseType(*type_memory_storage_flag)
+	// }
 
 	EngineCRMv.InitDataBase()
 	defer EngineCRMv.databaseSQLite.Close()
@@ -1476,8 +1451,6 @@ func main() {
 
 	//http://localhost:8181/checkINN?customer_INN=7702807750
 	router.HandleFunc("/checkINN", checkINN)
-
-	// router.HandleFunc("/users", users)
 
 	router.HandleFunc("/add_change_customer", add_change_customer)
 	router.HandleFunc("/postform_add_change_customer", postform_add_change_customer)

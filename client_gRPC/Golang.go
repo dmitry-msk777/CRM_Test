@@ -22,29 +22,29 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	// //Retrive
-	// RequestGET := &pb.RequestGET{
-	// 	CustomerId: "777666",
-	// }
-
-	// rply, err := c.GET_List(ctx, RequestGET)
-	// if err != nil {
-	// 	log.Println("something went wrong", err)
-	// }
-	// log.Println(rply)
-
-	// Record
-	RequestPOST := &pb.RequestPOST{
-		CustomerId:    "123007",
-		CustomerName:  "Alex gRPC",
-		CustomerType:  "Google",
-		CustomerEmail: "gRPC@mail.ru",
+	//Retrive
+	RequestGET := &pb.RequestGET{
+		CustomerId: "666",
 	}
 
-	rply2, err := c.POST_List(ctx, RequestPOST)
+	rply, err := c.GET_List(ctx, RequestGET)
 	if err != nil {
 		log.Println("something went wrong", err)
 	}
-	log.Println(rply2)
+	log.Println(rply)
+
+	// // Record
+	// RequestPOST := &pb.RequestPOST{
+	// 	CustomerId:    "123007",
+	// 	CustomerName:  "Alex gRPC",
+	// 	CustomerType:  "Google",
+	// 	CustomerEmail: "gRPC@mail.ru",
+	// }
+
+	// rply2, err := c.POST_List(ctx, RequestPOST)
+	// if err != nil {
+	// 	log.Println("something went wrong", err)
+	// }
+	// log.Println(rply2)
 
 }
