@@ -12,6 +12,7 @@ import (
 
 	// how import root package CRM.go ???
 	//DB "../bd"
+	DBLocalTest "../"
 	DBLocal "../bd"
 )
 
@@ -21,7 +22,9 @@ var collectionMongoDB *mongo.Collection
 
 func Write_in_MongoBD(i int) {
 
-	Customer_struct_MDB := DBLocal.Customer_struct{
+	fmt.Println(&DBLocalTest.Customer_struct)
+
+	Customer_struct_MDB := &DBLocal.Customer_struct{
 		Customer_name:  "Customer_name",
 		Customer_id:    "Customer_id",
 		Customer_type:  "Customer_type",
@@ -60,6 +63,15 @@ func Call_http_get_test(i int) {
 func main() {
 	fmt.Println("start testing")
 	//fmt.Println(DBLocal.Test777(5))
+
+	Customer_struct_MDB := &DBLocalTest.Customer_struct{
+		Customer_name:  "Customer_name",
+		Customer_id:    "Customer_id",
+		Customer_type:  "Customer_type",
+		Customer_email: "Customer_email"}
+
+	fmt.Println(Customer_struct_MDB)
+
 	counter = 666
 
 	collectionMongoDB = DBLocal.GetCollectionMongoBD("CRM", "testing", "mongodb://localhost:32768")

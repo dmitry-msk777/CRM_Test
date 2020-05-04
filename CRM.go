@@ -53,6 +53,326 @@ import (
 	"google.golang.org/grpc/grpclog"
 )
 
+type EngineCRM struct {
+	DataBaseType      string
+	collectionMongoDB *mongo.Collection
+	DemoDBmap         map[string]Customer_struct
+	databaseSQLite    *sql.DB
+	RedisClient       *redis.Client
+	Global_settings   Global_settings
+}
+
+func (EngineCRM *EngineCRM) SetDataBaseType(DataBaseType string) {
+
+	EngineCRM.DataBaseType = DataBaseType
+
+}
+
+func (EngineCRM *EngineCRM) GetOneJSON() string {
+	JsonString, err := json.Marshal(EngineCRM.DemoDBmap)
+	if err != nil {
+		return err.Error()
+	}
+
+	return string(JsonString)
+}
+
+func (EngineCRM *EngineCRM) InitDataBase() bool {
+
+	switch EngineCRMv.DataBaseType {
+	case "SQLit":
+		db, err := sql.Open("sqlite3", "./bd/SQLit/base_sqlit.db")
+
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			panic(err)
+		}
+		database = db
+		EngineCRMv.databaseSQLite = db
+
+		initDBSQLit()
+		//defer db.Close()
+
+	case "Redis":
+
+		EngineCRMv.RedisClient = intiRedisClient("localhost:32769")
+
+		pong, err := EngineCRMv.RedisClient.Ping().Result()
+		if err != nil {
+			EngineCRMv.RedisClient = nil
+			fmt.Println(pong, err)
+			return false
+		}
+
+	case "MongoDB":
+
+		//temporary
+		//collectionMongoDB = GetCollectionMongoBD("CRM", "customers", "mongodb://localhost:32768")
+		EngineCRMv.collectionMongoDB = DBLocal.GetCollectionMongoBD("CRM", "customers", "mongodb://localhost:32768")
+
+	default:
+		users["admin"] = "admin"
+		var ArrayCustomer []Customer_struct
+
+		ArrayCustomer = append(ArrayCustomer, Customer_struct{
+			Customer_id:    "777",
+			Customer_name:  "Dmitry",
+			Customer_type:  "Cust",
+			Customer_email: "fff@mail.ru",
+		})
+
+		ArrayCustomer = append(ArrayCustomer, Customer_struct{
+			Customer_id:    "666",
+			Customer_name:  "Alex",
+			Customer_type:  "Cust_Fiz",
+			Customer_email: "44fish@mail.ru",
+		})
+
+		var mapForEngineCRM = make(map[string]Customer_struct)
+		EngineCRM.DemoDBmap = mapForEngineCRM
+
+		for _, p := range ArrayCustomer {
+			EngineCRM.DemoDBmap[p.Customer_id] = p
+		}
+
+	}
+
+	return true
+}
+
+func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) map[string]Customer_struct {
+
+	var customer_map_s = make(map[string]Customer_struct)
+
+	switch DataBaseType {
+	case "SQLit":
+
+		rows, err := EngineCRM.databaseSQLite.Query("select * from customer")
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			panic(err)
+		}
+		defer rows.Close()
+		Customer_struct_s := []Customer_struct{}
+
+		for rows.Next() {
+			p := Customer_struct{}
+			err := rows.Scan(&p.Customer_id, &p.Customer_name, &p.Customer_type, &p.Customer_email)
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+				fmt.Println(err)
+				continue
+			}
+			Customer_struct_s = append(Customer_struct_s, p)
+		}
+		for _, p := range Customer_struct_s {
+			customer_map_s[p.Customer_id] = p
+		}
+
+		return customer_map_s
+
+	case "MongoDB":
+
+		cur, err := EngineCRMv.collectionMongoDB.Find(context.Background(), bson.D{})
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+		}
+		defer cur.Close(context.Background())
+
+		Customer_struct_slice := []Customer_struct{}
+
+		for cur.Next(context.Background()) {
+
+			Customer_struct_out := Customer_struct{}
+
+			err := cur.Decode(&Customer_struct_out)
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+			}
+
+			Customer_struct_slice = append(Customer_struct_slice, Customer_struct_out)
+
+			// To get the raw bson bytes use cursor.Current
+			// // raw := cur.Current
+			// // fmt.Println(raw)
+			// do something with raw...
+		}
+		if err := cur.Err(); err != nil {
+			ErrorLogger.Println(err.Error())
+		}
+
+		for _, p := range Customer_struct_slice {
+			customer_map_s[p.Customer_id] = p
+		}
+
+		return customer_map_s
+
+	case "Redis":
+
+		Customer_struct_slice := []Customer_struct{}
+
+		// find a function that gets all the keys to Reddit
+		i := 0
+		for {
+			p := Customer_struct{}
+			IDString := strconv.FormatInt(int64(i), 10)
+			val2, err := EngineCRMv.RedisClient.Get(IDString).Result()
+			if err == redis.Nil {
+				//fmt.Println("key2 does not exist")
+			} else if err != nil {
+				panic(err)
+			} else {
+				fmt.Println("key2", val2)
+
+				err = json.Unmarshal([]byte(val2), &p)
+				if err != nil {
+					ErrorLogger.Println(err.Error())
+				}
+
+				Customer_struct_slice = append(Customer_struct_slice, p)
+			}
+			i++
+			if i > 1000 {
+				break
+			}
+		}
+
+		for _, p := range Customer_struct_slice {
+			customer_map_s[p.Customer_id] = p
+		}
+
+		return customer_map_s
+
+	default:
+		return EngineCRM.DemoDBmap
+	}
+
+}
+
+func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string) Customer_struct {
+
+	Customer_struct_out := Customer_struct{}
+
+	switch DataBaseType {
+	case "SQLit":
+
+		row := EngineCRMv.databaseSQLite.QueryRow("select * from customer where customer_id = ?", id)
+
+		err := row.Scan(&Customer_struct_out.Customer_id, &Customer_struct_out.Customer_name, &Customer_struct_out.Customer_type, &Customer_struct_out.Customer_email)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			panic(err)
+		}
+
+	case "MongoDB":
+
+		err := EngineCRMv.collectionMongoDB.FindOne(context.TODO(), bson.D{{"customer_id", id}}).Decode(&Customer_struct_out)
+		if err != nil {
+			// ErrNoDocuments means that the filter did not match any documents in the collection
+			if err == mongo.ErrNoDocuments {
+				panic(err)
+			}
+			log.Fatal(err)
+		}
+		fmt.Printf("found document %v", Customer_struct_out)
+
+	case "Redit":
+
+	default:
+		Customer_struct_out = EngineCRMv.DemoDBmap[id]
+	}
+
+	return Customer_struct_out
+}
+
+func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct Customer_struct) string {
+
+	switch DataBaseType {
+	case "SQLit":
+
+		var count int
+
+		row := EngineCRMv.databaseSQLite.QueryRow("select COUNT(*) from customer where customer_id = ?", Customer_struct.Customer_id)
+
+		err := row.Scan(&count)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			return err.Error()
+		}
+
+		if count == 0 {
+
+			_, err = EngineCRMv.databaseSQLite.Exec("insert into customer (customer_id, customer_name, customer_type, customer_email) values (?, ?, ?, ?)",
+				Customer_struct.Customer_id, Customer_struct.Customer_name, Customer_struct.Customer_type, Customer_struct.Customer_email)
+
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+				return err.Error()
+			}
+		} else {
+			_, err = EngineCRMv.databaseSQLite.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
+				Customer_struct.Customer_name, Customer_struct.Customer_type, Customer_struct.Customer_email, Customer_struct.Customer_id)
+
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+				return err.Error()
+			}
+		}
+
+	case "MongoDB":
+
+		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+
+		//maybe use? insertMany(): добавляет несколько документов
+		//before adding find db.users.find()
+
+		insertResult, err := EngineCRMv.collectionMongoDB.InsertOne(ctx, Customer_struct)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			panic(err)
+		}
+		fmt.Println(insertResult.InsertedID)
+
+		// This update function can use the separate Update and Paste pre-search?
+
+		// opts := options.Update().SetUpsert(true)
+		// filter := bson.D{{"customer_id", Customer_struct.Customer_id}}
+		// update := bson.D{{"$set", bson.D{{"customer_name", Customer_struct.Customer_name}, {"customer_type", Customer_struct.Customer_type}, {"customer_email", Customer_struct.Customer_email}}}}
+
+		// result, err := EngineCRMv.collectionMongoDB.UpdateOne(context.TODO(), filter, update, opts)
+		// if err != nil {
+		// 	ErrorLogger.Println(err.Error())
+		// 	return err.Error()
+		// }
+
+		// if result.MatchedCount != 0 {
+		// 	fmt.Println("matched and replaced an existing document")
+		// }
+		// if result.UpsertedCount != 0 {
+		// 	fmt.Printf("inserted a new document with ID %v\n", result.UpsertedID)
+		// }
+	case "Redis":
+
+		JsonStr, err := json.Marshal(Customer_struct)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			return "error json:" + err.Error()
+		}
+
+		err = EngineCRMv.RedisClient.Set(Customer_struct.Customer_id, string(JsonStr), 0).Err()
+		if err != nil {
+			panic(err)
+		}
+
+	default:
+		EngineCRMv.DemoDBmap[Customer_struct.Customer_id] = Customer_struct
+	}
+
+	return ""
+}
+
+var EngineCRMv EngineCRM
+
 type Customer_struct struct {
 	Customer_id    string
 	Customer_name  string
@@ -60,7 +380,27 @@ type Customer_struct struct {
 	Customer_email string
 }
 
-// not use
+type Global_settings struct {
+	addressSQLite  string
+	addressMongoBD string
+	addressRedis   string
+}
+
+// need to implement
+func (GlobalSettings *Global_settings) SaveSettingsOnDisk() {
+	//EngineCRM.DataBaseType = DataBaseType
+}
+
+// need to implement
+func (GlobalSettings *Global_settings) LoadSettingsFromDisk() {
+	//EngineCRM.DataBaseType = DataBaseType
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+
+// not used
 type Customer_struct_bson struct {
 	ID             primitive.ObjectID `bson:"_id,omitempty"`
 	Customer_id    string             `bson:"Customer_id,omitempty"`
@@ -131,10 +471,11 @@ var type_memory_storage string
 const cookieName = "CookieCRM"
 
 type ViewData struct {
-	Title     string
-	Message   string
-	User      string
-	Customers map[string]Customer_struct
+	Title        string
+	Message      string
+	User         string
+	DataBaseType string
+	Customers    map[string]Customer_struct
 }
 
 var InfoLogger *log.Logger
@@ -530,50 +871,14 @@ func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
 		Customer_email: r.FormValue("customer_email"),
 	}
 
-	switch type_memory_storage {
-	case "SQLit":
-
-		_, err := database.Exec("insert into customer (customer_id, customer_name, customer_type, customer_email) values (?, ?, ?, ?)",
-			customer_data.Customer_id, customer_data.Customer_name, customer_data.Customer_type, customer_data.Customer_email)
-
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-			fmt.Fprintf(w, err.Error())
-		}
-		http.Redirect(w, r, "list_customer", 301)
-
-	case "MongoDB":
-
-		// // tutorial https://www.mongodb.com/blog/post/quick-start-golang--mongodb--modeling-documents-with-go-data-structures
-		// // insert one document
-		// customer_data := Customer_struct{
-		// 	Customer_name:  "customer_name_test",
-		// 	Customer_id:    "customer_id_test",
-		// 	Customer_type:  "customer_type_test",
-		// 	Customer_email: "customer_email_test",
-		// }
-
-		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-
-		//maybe use? insertMany(): добавляет несколько документов
-		//before adding find db.users.find()
-		insertResult, err := collectionMongoDB.InsertOne(ctx, customer_data)
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-			panic(err)
-		}
-		fmt.Println(insertResult.InsertedID)
-
-	default:
-		customer_map[r.FormValue("customer_id")] = customer_data
-	}
+	EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, customer_data)
 
 	http.Redirect(w, r, "/list_customer", 302)
 }
 
 func list_customer(w http.ResponseWriter, r *http.Request) {
 
-	//2
+	//prometheus
 	CRM_Counter_Gauge.Set(float64(5)) // or: Inc(), Dec(), Add(5), Dec(5),
 
 	tmpl, err := template.ParseFiles("templates/list_customer.html", "templates/header.html")
@@ -583,76 +888,7 @@ func list_customer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch type_memory_storage {
-	case "SQLit":
-
-		var customer_map_s = make(map[string]Customer_struct)
-
-		rows, err := database.Query("select * from customer")
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-			panic(err)
-		}
-		defer rows.Close()
-		Customer_struct_s := []Customer_struct{}
-
-		for rows.Next() {
-			p := Customer_struct{}
-			err := rows.Scan(&p.Customer_id, &p.Customer_name, &p.Customer_type, &p.Customer_email)
-			if err != nil {
-				ErrorLogger.Println(err.Error())
-				fmt.Println(err)
-				continue
-			}
-			Customer_struct_s = append(Customer_struct_s, p)
-		}
-		for _, p := range Customer_struct_s {
-			customer_map_s[p.Customer_id] = p
-		}
-
-		tmpl.ExecuteTemplate(w, "list_customer", customer_map_s)
-
-	case "MongoDB":
-
-		var customer_map_s = make(map[string]Customer_struct)
-
-		cur, err := collectionMongoDB.Find(context.Background(), bson.D{})
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-		}
-		defer cur.Close(context.Background())
-
-		Customer_struct_slice := []Customer_struct{}
-
-		for cur.Next(context.Background()) {
-
-			Customer_struct_out := Customer_struct{}
-
-			err := cur.Decode(&Customer_struct_out)
-			if err != nil {
-				ErrorLogger.Println(err.Error())
-			}
-
-			Customer_struct_slice = append(Customer_struct_slice, Customer_struct_out)
-
-			// To get the raw bson bytes use cursor.Current
-			// // raw := cur.Current
-			// // fmt.Println(raw)
-			// do something with raw...
-		}
-		if err := cur.Err(); err != nil {
-			ErrorLogger.Println(err.Error())
-		}
-
-		for _, p := range Customer_struct_slice {
-			customer_map_s[p.Customer_id] = p
-		}
-
-		tmpl.ExecuteTemplate(w, "list_customer", customer_map_s)
-
-	default:
-		tmpl.ExecuteTemplate(w, "list_customer", customer_map)
-	}
+	tmpl.ExecuteTemplate(w, "list_customer", EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType))
 
 }
 
@@ -744,11 +980,11 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 		http.StatusMovedPermanently)
 }
 
-func email_settings(w http.ResponseWriter, r *http.Request) {
+func settings(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == "GET" {
 
-		tmpl, err := template.ParseFiles("mail_smtp/settings.html", "templates/header.html")
+		tmpl, err := template.ParseFiles("templates/settings.html", "templates/header.html")
 		if err != nil {
 			ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
@@ -756,49 +992,15 @@ func email_settings(w http.ResponseWriter, r *http.Request) {
 		}
 
 		data := ViewData{
-			Title:     "Test777",
-			Message:   mass_settings[1],
-			User:      mass_settings[0],
-			Customers: nil,
+			Title:   "Test777",
+			Message: mass_settings[1],
+			User:    mass_settings[0],
+			//Correct double entry in selection form
+			DataBaseType: EngineCRMv.DataBaseType,
+			Customers:    nil,
 		}
 
-		if type_memory_storage == "SQLit" {
-
-			// var customer_map_s = make(map[string]Customer_struct)
-
-			// rows, err := database.Query("select * from customer")
-			// if err != nil {
-			// 	panic(err)
-			// }
-			// defer rows.Close()
-			// Customer_struct_s := []Customer_struct{}
-
-			// for rows.Next() {
-			// 	p := Customer_struct{}
-			// 	err := rows.Scan(&p.Customer_id, &p.Customer_name, &p.Customer_type, &p.Customer_email)
-			// 	if err != nil {
-			// 		fmt.Println(err)
-			// 		continue
-			// 	}
-			// 	Customer_struct_s = append(Customer_struct_s, p)
-			// }
-			// for _, p := range Customer_struct_s {
-			// 	customer_map_s[p.Customer_id] = p
-			// }
-
-			tmpl.ExecuteTemplate(w, "settings_email", data)
-
-		} else {
-			tmpl.ExecuteTemplate(w, "settings_email", data)
-		}
-
-		// data := ViewData{
-		// 	Title:     "list customer",
-		// 	Message:   "list customer below",
-		// 	Customers: customer_map,
-		// }
-
-		//tmpl.ExecuteTemplate(w, "list_customer", data)
+		tmpl.ExecuteTemplate(w, "settings", data)
 
 		// Add fill elements form from a global variable or database
 		// Add the ability to select an smtp-server or extract a server from an email address
@@ -806,11 +1008,16 @@ func email_settings(w http.ResponseWriter, r *http.Request) {
 	} else {
 		email := r.FormValue("email")
 		password := r.FormValue("password")
+		//Correct double entry in selection form
+		DataBaseType := r.FormValue("DataBaseType")
 
 		//fmt.Fprint(w, email+"error auth user not find"+password)
 
 		mass_settings[0] = email
 		mass_settings[1] = password
+		EngineCRMv.SetDataBaseType(DataBaseType)
+
+		EngineCRMv.InitDataBase()
 
 		http.Redirect(w, r, "/", 302)
 	}
@@ -871,33 +1078,7 @@ func EditPage(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	Customer_struct_out := Customer_struct{}
-	switch type_memory_storage {
-	case "SQLit":
-
-		row := database.QueryRow("select * from customer where customer_id = ?", id)
-
-		err := row.Scan(&Customer_struct_out.Customer_id, &Customer_struct_out.Customer_name, &Customer_struct_out.Customer_type, &Customer_struct_out.Customer_email)
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-			http.Error(w, http.StatusText(404), http.StatusNotFound)
-		}
-
-	case "MongoDB":
-
-		err := collectionMongoDB.FindOne(context.TODO(), bson.D{{"customer_id", id}}).Decode(&Customer_struct_out)
-		if err != nil {
-			// ErrNoDocuments means that the filter did not match any documents in the collection
-			if err == mongo.ErrNoDocuments {
-				return
-			}
-			log.Fatal(err)
-		}
-		fmt.Printf("found document %v", Customer_struct_out)
-
-	default:
-		Customer_struct_out = customer_map[id]
-	}
+	Customer_struct_out := EngineCRMv.FindOneRow(EngineCRMv.DataBaseType, id)
 
 	tmpl, err := template.ParseFiles("templates/edit.html", "templates/header.html")
 	if err != nil {
@@ -916,52 +1097,21 @@ func EditHandler(w http.ResponseWriter, r *http.Request) {
 		ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 	}
-	customer_id := r.FormValue("customer_id")
-	customer_name := r.FormValue("customer_name")
-	customer_type := r.FormValue("customer_type")
-	customer_email := r.FormValue("customer_email")
 
-	switch type_memory_storage {
-	case "SQLit":
-
-		_, err = database.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
-			customer_name, customer_type, customer_email, customer_id)
-
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-			fmt.Fprintf(w, err.Error())
-		}
-
-	case "MongoDB":
-
-		opts := options.Update().SetUpsert(true)
-		filter := bson.D{{"customer_id", customer_id}}
-		update := bson.D{{"$set", bson.D{{"customer_name", customer_name}, {"customer_type", customer_type}, {"customer_email", customer_email}}}}
-
-		result, err := collectionMongoDB.UpdateOne(context.TODO(), filter, update, opts)
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-			fmt.Fprintf(w, err.Error())
-		}
-
-		if result.MatchedCount != 0 {
-			fmt.Println("matched and replaced an existing document")
-		}
-		if result.UpsertedCount != 0 {
-			fmt.Printf("inserted a new document with ID %v\n", result.UpsertedID)
-		}
-
-	default:
-		Customer_struct_out := Customer_struct{}
-		Customer_struct_out.Customer_id = customer_id
-		Customer_struct_out.Customer_name = customer_name
-		Customer_struct_out.Customer_type = customer_type
-		Customer_struct_out.Customer_email = customer_email
-
-		customer_map[customer_id] = Customer_struct_out
+	Customer_struct_out := Customer_struct{
+		Customer_id:    r.FormValue("customer_id"),
+		Customer_name:  r.FormValue("customer_name"),
+		Customer_type:  r.FormValue("customer_type"),
+		Customer_email: r.FormValue("customer_email"),
 	}
 
+	EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, Customer_struct_out)
+
+	//return err
+	//fmt.Fprintf(w, err.Error())
+
 	http.Redirect(w, r, "/list_customer", 301)
+
 }
 
 func DeleteHandler(w http.ResponseWriter, r *http.Request) {
@@ -982,6 +1132,8 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 			ErrorLogger.Println(err.Error())
 		}
 		fmt.Printf("deleted %v documents\n", res.DeletedCount)
+
+	case "Redis":
 
 	default:
 		_, ok := customer_map[id]
@@ -1100,7 +1252,7 @@ func initDBSQLit() {
 	// 	PRIMARY KEY("customer_id")
 	// );
 	sql_query := "create table if not exists customer (customer_id text primary key, customer_name text, customer_type text, customer_email text);"
-	_, err := database.Exec(sql_query)
+	_, err := EngineCRMv.databaseSQLite.Exec(sql_query)
 	if err != nil {
 		ErrorLogger.Println(err.Error())
 		fmt.Println("can't create table : " + err.Error())
@@ -1112,7 +1264,7 @@ func initDBSQLit() {
 	// 	PRIMARY KEY("id")
 	// );
 	sql_query = "create table if not exists cookie (id text primary key, user text);"
-	_, err = database.Exec(sql_query)
+	_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
 	if err != nil {
 		ErrorLogger.Println(err.Error())
 		fmt.Println("can't create table : " + err.Error())
@@ -1124,7 +1276,7 @@ func initDBSQLit() {
 	// 	PRIMARY KEY("user")
 	// );
 	sql_query = "create table if not exists users (user text primary key, password text);"
-	_, err = database.Exec(sql_query)
+	_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
 	if err != nil {
 		ErrorLogger.Println(err.Error())
 		fmt.Println("can't create table : " + err.Error())
@@ -1146,134 +1298,14 @@ func Api_json(w http.ResponseWriter, r *http.Request) {
 		// 	}
 		// }
 
-		switch type_memory_storage {
-		case "SQLit":
+		customer_map_s := EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType)
 
-			var customer_map_s = make(map[string]Customer_struct)
-
-			rows, err := database.Query("select * from customer")
-			if err != nil {
-				ErrorLogger.Println(err.Error())
-				panic(err)
-			}
-			defer rows.Close()
-			Customer_struct_s := []Customer_struct{}
-
-			for rows.Next() {
-				p := Customer_struct{}
-				err := rows.Scan(&p.Customer_id, &p.Customer_name, &p.Customer_type, &p.Customer_email)
-				if err != nil {
-					ErrorLogger.Println(err.Error())
-					fmt.Println(err)
-					continue
-				}
-				Customer_struct_s = append(Customer_struct_s, p)
-			}
-			for _, p := range Customer_struct_s {
-				customer_map_s[p.Customer_id] = p
-			}
-
-			userVar2, err := json.Marshal(customer_map_s)
-			if err != nil {
-				ErrorLogger.Println(err.Error())
-				fmt.Fprintf(w, "error json:"+err.Error())
-			}
-			fmt.Fprintf(w, string(userVar2))
-
-		case "MongoDB":
-
-			var customer_map_s = make(map[string]Customer_struct)
-
-			cur, err := collectionMongoDB.Find(context.Background(), bson.D{})
-			if err != nil {
-				ErrorLogger.Println(err.Error())
-			}
-			defer cur.Close(context.Background())
-
-			Customer_struct_slice := []Customer_struct{}
-
-			for cur.Next(context.Background()) {
-
-				Customer_struct_out := Customer_struct{}
-
-				err := cur.Decode(&Customer_struct_out)
-				if err != nil {
-					ErrorLogger.Println(err.Error())
-				}
-
-				Customer_struct_slice = append(Customer_struct_slice, Customer_struct_out)
-
-				// To get the raw bson bytes use cursor.Current
-				// // raw := cur.Current
-				// // fmt.Println(raw)
-				// do something with raw...
-			}
-			if err := cur.Err(); err != nil {
-				ErrorLogger.Println(err.Error())
-			}
-
-			for _, p := range Customer_struct_slice {
-				customer_map_s[p.Customer_id] = p
-			}
-
-			userVar2, err := json.Marshal(customer_map_s)
-			if err != nil {
-				ErrorLogger.Println(err.Error())
-				fmt.Fprintf(w, "error json:"+err.Error())
-			}
-			fmt.Fprintf(w, string(userVar2))
-
-		case "Redis":
-
-			var customer_map_s = make(map[string]Customer_struct)
-			Customer_struct_slice := []Customer_struct{}
-
-			// find a function that gets all the keys to Reddit
-			i := 0
-			for {
-				p := Customer_struct{}
-				IDString := strconv.FormatInt(int64(i), 10)
-				val2, err := RedisClient.Get(IDString).Result()
-				if err == redis.Nil {
-					//fmt.Println("key2 does not exist")
-				} else if err != nil {
-					panic(err)
-				} else {
-					fmt.Println("key2", val2)
-
-					err = json.Unmarshal([]byte(val2), &p)
-					if err != nil {
-						ErrorLogger.Println(err.Error())
-						fmt.Fprintf(w, err.Error())
-					}
-
-					Customer_struct_slice = append(Customer_struct_slice, p)
-				}
-				i++
-				if i > 1000 {
-					break
-				}
-			}
-
-			for _, p := range Customer_struct_slice {
-				customer_map_s[p.Customer_id] = p
-			}
-
-			userVar2, err := json.Marshal(customer_map_s)
-			if err != nil {
-				ErrorLogger.Println(err.Error())
-				fmt.Fprintf(w, "error json:"+err.Error())
-			}
-			fmt.Fprintf(w, string(userVar2))
-
-		default:
-			userVar2, err := json.Marshal(customer_map)
-			if err != nil {
-				ErrorLogger.Println(err.Error())
-				fmt.Fprintf(w, "error json:"+err.Error())
-			}
-			fmt.Fprintf(w, string(userVar2))
+		JsonString, err := json.Marshal(customer_map_s)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, "error json:"+err.Error())
 		}
+		fmt.Fprintf(w, string(JsonString))
 
 	} else {
 
@@ -1284,7 +1316,6 @@ func Api_json(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var customer_map_json = make(map[string]Customer_struct)
-		//Customer_struct := &Customer_struct{}
 
 		err = json.Unmarshal(body, &customer_map_json)
 		if err != nil {
@@ -1292,78 +1323,8 @@ func Api_json(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, err.Error())
 		}
 
-		switch type_memory_storage {
-		case "SQLit":
-
-			var count int
-
-			for _, p := range customer_map_json {
-
-				row := database.QueryRow("select COUNT(*) from customer where customer_id = ?", p.Customer_id)
-
-				err := row.Scan(&count)
-				if err != nil {
-					ErrorLogger.Println(err.Error())
-					fmt.Fprintf(w, err.Error())
-				}
-
-				if count == 0 {
-
-					_, err = database.Exec("insert into customer (customer_id, customer_name, customer_type, customer_email) values (?, ?, ?, ?)",
-						p.Customer_id, p.Customer_name, p.Customer_type, p.Customer_email)
-
-					if err != nil {
-						ErrorLogger.Println(err.Error())
-						fmt.Fprintf(w, err.Error())
-					}
-				} else {
-					_, err = database.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
-						p.Customer_name, p.Customer_type, p.Customer_email, p.Customer_id)
-
-					if err != nil {
-						ErrorLogger.Println(err.Error())
-						fmt.Fprintf(w, err.Error())
-					}
-				}
-			}
-
-		case "MongoDB":
-
-			ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-
-			//maybe use? insertMany(): добавляет несколько документов
-			//before adding find db.users.find()
-
-			for _, p := range customer_map_json {
-				insertResult, err := collectionMongoDB.InsertOne(ctx, p)
-				if err != nil {
-					ErrorLogger.Println(err.Error())
-					panic(err)
-				}
-				fmt.Println(insertResult.InsertedID)
-			}
-
-		case "Redis":
-
-			for _, p := range customer_map_json {
-
-				userVar2, err := json.Marshal(p)
-				if err != nil {
-					ErrorLogger.Println(err.Error())
-					fmt.Fprintf(w, "error json:"+err.Error())
-				}
-
-				err = RedisClient.Set(p.Customer_id, string(userVar2), 0).Err()
-				if err != nil {
-					panic(err)
-				}
-
-			}
-
-		default:
-			for _, p := range customer_map_json {
-				customer_map[p.Customer_id] = p
-			}
+		for _, p := range customer_map_json {
+			EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, p)
 		}
 
 		fmt.Fprintf(w, string(body))
@@ -1376,183 +1337,47 @@ func Api_xml(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == "GET" {
 
-		switch type_memory_storage {
-		case "SQLit":
+		customer_map_s := EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType)
 
-			// var customer_map_s = make(map[string]Customer_struct)
-
-			// rows, err := database.Query("select * from customer")
-			// if err != nil {
-			// 	ErrorLogger.Println(err.Error())
-			// 	panic(err)
-			// }
-			// defer rows.Close()
-			// Customer_struct_s := []Customer_struct{}
-
-			// for rows.Next() {
-			// 	p := Customer_struct{}
-			// 	err := rows.Scan(&p.Customer_id, &p.Customer_name, &p.Customer_type, &p.Customer_email)
-			// 	if err != nil {
-			// 		ErrorLogger.Println(err.Error())
-			// 		fmt.Println(err)
-			// 		continue
-			// 	}
-			// 	Customer_struct_s = append(Customer_struct_s, p)
-			// }
-			// for _, p := range Customer_struct_s {
-			// 	customer_map_s[p.Customer_id] = p
-			// }
-
-			// userVar2, err := json.Marshal(customer_map_s)
-			// if err != nil {
-			// 	ErrorLogger.Println(err.Error())
-			// 	fmt.Fprintf(w, "error json:"+err.Error())
-			// }
-			// fmt.Fprintf(w, string(userVar2))
-
-		case "MongoDB":
-
-			var customer_map_s = make(map[string]Customer_struct)
-
-			cur, err := collectionMongoDB.Find(context.Background(), bson.D{})
-			if err != nil {
-				ErrorLogger.Println(err.Error())
-			}
-			defer cur.Close(context.Background())
-
-			Customer_struct_slice := []Customer_struct{}
-
-			for cur.Next(context.Background()) {
-
-				Customer_struct_out := Customer_struct{}
-
-				err := cur.Decode(&Customer_struct_out)
-				if err != nil {
-					ErrorLogger.Println(err.Error())
-				}
-
-				Customer_struct_slice = append(Customer_struct_slice, Customer_struct_out)
-
-			}
-			if err := cur.Err(); err != nil {
-				ErrorLogger.Println(err.Error())
-			}
-
-			for _, p := range Customer_struct_slice {
-				customer_map_s[p.Customer_id] = p
-			}
-
-			// userVar2, err := json.Marshal(customer_map_s)
-			// if err != nil {
-			// 	ErrorLogger.Println(err.Error())
-			// 	fmt.Fprintf(w, "error json:"+err.Error())
-			// }
-			// fmt.Fprintf(w, string(userVar2))
-
-			xmlData, _ := xml.MarshalIndent(Customer_struct_slice, " ", "  ")
-			fmt.Fprintf(w, string(xmlData))
-
-			test_rez_slice := []CustomerStruct_xml{}
-			//var test_rez []Customer_struct
-			if err := xml.Unmarshal(xmlData, &test_rez_slice); err != nil {
-				panic(err)
-			}
-			fmt.Println(test_rez_slice)
-
-		default:
-			userVar2, err := json.Marshal(customer_map)
-			if err != nil {
-				ErrorLogger.Println(err.Error())
-				fmt.Fprintf(w, "error json:"+err.Error())
-			}
-			fmt.Fprintf(w, string(userVar2))
+		JsonString, err := json.Marshal(customer_map_s)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, "error json:"+err.Error())
 		}
+		fmt.Fprintf(w, string(JsonString))
+
+		xmlData, _ := xml.MarshalIndent(customer_map_s, " ", "  ")
+		fmt.Fprintf(w, string(xmlData))
+
+		test_rez_slice := []CustomerStruct_xml{}
+		//var test_rez []Customer_struct
+		if err := xml.Unmarshal(xmlData, &test_rez_slice); err != nil {
+			panic(err)
+		}
+		fmt.Println(test_rez_slice)
 
 	} else {
 
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-			fmt.Fprintf(w, err.Error())
-		}
+		// body, err := ioutil.ReadAll(r.Body)
+		// if err != nil {
+		// 	ErrorLogger.Println(err.Error())
+		// 	fmt.Fprintf(w, err.Error())
+		// }
 
-		var customer_map_json = make(map[string]Customer_struct)
+		// var customer_map_json = make(map[string]Customer_struct)
 
-		err = json.Unmarshal(body, &customer_map_json)
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-			fmt.Fprintf(w, err.Error())
-		}
+		// err = json.Unmarshal(body, &customer_map_json)
+		// if err != nil {
+		// 	ErrorLogger.Println(err.Error())
+		// 	fmt.Fprintf(w, err.Error())
+		// }
 
-		switch type_memory_storage {
-		case "SQLit":
+		// for _, p := range customer_map_json {
+		// 	EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, p)
+		// }
 
-			// var count int
-
-			// for _, p := range customer_map_json {
-
-			// 	row := database.QueryRow("select COUNT(*) from customer where customer_id = ?", p.Customer_id)
-
-			// 	err := row.Scan(&count)
-			// 	if err != nil {
-			// 		ErrorLogger.Println(err.Error())
-			// 		fmt.Fprintf(w, err.Error())
-			// 	}
-
-			// 	if count == 0 {
-
-			// 		_, err = database.Exec("insert into customer (customer_id, customer_name, customer_type, customer_email) values (?, ?, ?, ?)",
-			// 			p.Customer_id, p.Customer_name, p.Customer_type, p.Customer_email)
-
-			// 		if err != nil {
-			// 			ErrorLogger.Println(err.Error())
-			// 			fmt.Fprintf(w, err.Error())
-			// 		}
-			// 	} else {
-			// 		_, err = database.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
-			// 			p.Customer_name, p.Customer_type, p.Customer_email, p.Customer_id)
-
-			// 		if err != nil {
-			// 			ErrorLogger.Println(err.Error())
-			// 			fmt.Fprintf(w, err.Error())
-			// 		}
-			// 	}
-			// }
-
-		case "MongoDB":
-
-			ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-
-			//maybe use? insertMany(): добавляет несколько документов
-			//before adding find db.users.find()
-
-			for _, p := range customer_map_json {
-				insertResult, err := collectionMongoDB.InsertOne(ctx, p)
-				if err != nil {
-					ErrorLogger.Println(err.Error())
-					panic(err)
-				}
-				fmt.Println(insertResult.InsertedID)
-			}
-
-			//	//	res := &Result{}
-			//	//string(contents_2)
-			//	//err2 := xml.Unmarshal(Res_test.Bytes(), res)
-			//	//	err2 := xml.Unmarshal(contents, res)
-			//	//	if err2 != nil {
-			//	//		fmt.Println("Error Unmarshal = ", err2.Error())
-			//	//	}
-
-		default:
-			for _, p := range customer_map_json {
-				customer_map[p.Customer_id] = p
-			}
-		}
-
-		fmt.Fprintf(w, string(body))
-
+		// fmt.Fprintf(w, string(body))
 	}
-
 }
 
 func initLog() {
@@ -1624,46 +1449,18 @@ func main() {
 	flag.Parse()
 
 	if *type_memory_storage_flag == "" {
-		//type_memory_storage = "global_variable"
+		type_memory_storage = "DemoRegime"
 
 		//temporary
-		type_memory_storage = "MongoDB"
+		type_memory_storage = "Redis"
+		EngineCRMv.SetDataBaseType("Redis")
 	} else {
 		type_memory_storage = *type_memory_storage_flag
+		EngineCRMv.SetDataBaseType(*type_memory_storage_flag)
 	}
 
-	switch type_memory_storage {
-	case "SQLit":
-		db, err := sql.Open("sqlite3", "./bd/SQLit/base_sqlit.db")
-
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-			panic(err)
-		}
-		database = db
-
-		initDBSQLit()
-		defer db.Close()
-
-	case "Redis":
-
-		RedisClient = intiRedisClient("localhost:32769")
-
-		pong, err := RedisClient.Ping().Result()
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println(pong, err)
-
-	case "MongoDB":
-
-		//temporary
-		//collectionMongoDB = GetCollectionMongoBD("CRM", "customers", "mongodb://localhost:32768")
-		collectionMongoDB = DBLocal.GetCollectionMongoBD("CRM", "customers", "mongodb://localhost:32768")
-
-	default:
-		users["admin"] = "admin"
-	}
+	EngineCRMv.InitDataBase()
+	defer EngineCRMv.databaseSQLite.Close()
 
 	go initgRPC()
 
@@ -1693,8 +1490,7 @@ func main() {
 	router.HandleFunc("/login", RedirectToHTTPS)
 	router.HandleFunc("/loginPost", RedirectToHTTPS)
 
-	router.HandleFunc("/email_settings", email_settings)
-	//router.HandleFunc("/email_settingsPost", email_settingsPost)
+	router.HandleFunc("/settings", settings)
 
 	router.HandleFunc("/send_message", send_message)
 

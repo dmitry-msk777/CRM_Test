@@ -1,0 +1,45 @@
+{{ define "settings" }}
+<body>
+	{{ template "header" }}
+	<div>
+		<form role="form" method="POST" action="/settings">
+			<div>
+				<label>email</label>
+				{{if .User}}
+				<input type="text" class="form-control" id="email" name="email" value="{{.User}}"  /> <br><br>
+				{{else}}
+				<input type="text" class="form-control" id="email" name="email"/> <br><br>
+				{{end}}
+			</div>
+			<div>
+				<label>Password</label>
+				{{if .Message}}
+				<input type="password" class="form-control" id="password" name="password" value="{{.Message}}" /> <br><br>
+				{{else}}
+				<input type="password" class="form-control" id="password" name="password"  /> <br><br>
+				{{end}}
+			</div>
+			<div>
+				<label>DataBaseType</label>
+				 
+				
+				<select id="DataBaseType" name="DataBaseType" class="form-control">
+					{{if .DataBaseType}}
+					<option value="{{.DataBaseType}}">{{.DataBaseType}}</option>
+					{{else}}
+					
+					{{end}}
+					<option value="SQLit">SQLit</option>
+					<option value="MongoDB">MongoDB</option>
+					<option value="Redis">Redis</option>
+					<option value="DemoRegime">DemoRegime</option>
+				  </select>
+
+			</div>
+
+			<button type="submit" class="btn btn-default">Submit</button>
+		</form>
+
+</div>
+</body>
+{{end}}
