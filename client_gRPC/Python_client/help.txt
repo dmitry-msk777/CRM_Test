@@ -1,0 +1,7 @@
+pip install grpcio grpcio-tools
+
+python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. CRMswap.proto
+
+python client.py
+
+https://blog.stroganov.pro/grpc-%d0%b8-python/

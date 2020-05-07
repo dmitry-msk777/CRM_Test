@@ -14,6 +14,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/beevik/etree"
 	"github.com/go-redis/redis/v7"
 	"github.com/gorilla/mux"
 
@@ -25,7 +26,6 @@ import (
 	//"github.com/tiaguinho/gosoap"
 	"bytes"
 	"encoding/json"
-	"encoding/xml"
 	"io/ioutil"
 
 	"regexp"
@@ -59,6 +59,8 @@ type EngineCRM struct {
 	databaseSQLite    *sql.DB
 	RedisClient       *redis.Client
 	Global_settings   Global_settings
+	Users_CRM_map     map[string]Users_CRM
+	Cookie_CRM_map    map[string]Cookie_CRM
 }
 
 func (EngineCRM *EngineCRM) SetSettings(Global_settings Global_settings) {
@@ -152,7 +154,7 @@ func (EngineCRM *EngineCRM) InitDataBase() bool {
 		EngineCRMv.collectionMongoDB = DBLocal.GetCollectionMongoBD("CRM", "customers", EngineCRMv.Global_settings.AddressMongoBD)
 
 	default:
-		users["admin"] = "admin"
+
 		var ArrayCustomer []Customer_struct
 
 		ArrayCustomer = append(ArrayCustomer, Customer_struct{
@@ -171,6 +173,18 @@ func (EngineCRM *EngineCRM) InitDataBase() bool {
 
 		var mapForEngineCRM = make(map[string]Customer_struct)
 		EngineCRM.DemoDBmap = mapForEngineCRM
+
+		var users_CRM_def = make(map[string]Users_CRM)
+		EngineCRM.Users_CRM_map = users_CRM_def
+
+		users_CRM_data := Users_CRM{
+			user:     "admin",
+			password: "1234"}
+
+		EngineCRM.Users_CRM_map["admin"] = users_CRM_data
+
+		var cookie_CRM_def = make(map[string]Cookie_CRM)
+		EngineCRM.Cookie_CRM_map = cookie_CRM_def
 
 		for _, p := range ArrayCustomer {
 			EngineCRM.DemoDBmap[p.Customer_id] = p
@@ -460,7 +474,6 @@ type Global_settings struct {
 	Mail_password   string
 }
 
-// need to implement
 func (GlobalSettings *Global_settings) SaveSettingsOnDisk() {
 
 	f, err := os.Create("./settings/config.json")
@@ -483,7 +496,6 @@ func (GlobalSettings *Global_settings) SaveSettingsOnDisk() {
 	}
 }
 
-// need to implement
 func (GlobalSettings *Global_settings) LoadSettingsFromDisk() {
 
 	file, err := os.OpenFile("./settings/config.json", os.O_RDWR|os.O_CREATE, 0755)
@@ -520,54 +532,31 @@ type Customer_struct_bson struct {
 	Customer_email string             `bson:"Customer_email,omitempty"`
 }
 
-type users_base struct {
+type Users_CRM struct {
 	user     string
 	password string
 }
 
-type cookie_base struct {
+type Cookie_CRM struct {
 	id   string
 	user string
 }
 
-type Envelope struct {
-	XMLName xml.Name `xml:"Envelope"`
-	Text    string   `xml:",chardata"`
-	S       string   `xml:"S,attr"`
-	Body    struct {
-		Text         string `xml:",chardata"`
-		NdsResponse2 struct {
-			Text    string `xml:",chardata"`
-			Xmlns   string `xml:"xmlns,attr"`
-			DTActFL string `xml:"DTActFL,attr"`
-			DTActUL string `xml:"DTActUL,attr"`
-			NP      struct {
-				Text  string `xml:",chardata"`
-				INN   string `xml:"INN,attr"`
-				State string `xml:"State,attr"`
-			} `xml:"NP"`
-		} `xml:"NdsResponse2"`
-	} `xml:"Body"`
-}
+var Cookie_CRMv Cookie_CRM
 
-type CustomerStruct_xmlRoot struct {
-	Customer_struct []CustomerStruct_xml `xml:"Customer_struct"`
-}
-
-type CustomerStruct_xml struct {
-	CustomerID    string `xml:"Customer_id"`
-	CustomerName  string `xml:"Customer_name"`
-	CustomerType  string `xml:"Customer_type"`
-	CustomerEmail string `xml:"Customer_email"`
+// convert in cookie_base type
+func (Cookie_CRM *Cookie_CRM) GenerateId() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)
 }
 
 var database *sql.DB
-
 var collectionMongoDB *mongo.Collection
-
 var RedisClient *redis.Client
 
-var CRM_Counter_Prometheus prometheus.Counter
+var CRM_Counter_Prometheus_JSON prometheus.Counter
+var CRM_Counter_Prometheus_XML prometheus.Counter
 var CRM_Counter_Gauge prometheus.Gauge
 
 var customer_map = make(map[string]Customer_struct)
@@ -576,8 +565,6 @@ var cookiemap = make(map[string]string)
 var users = make(map[string]string)
 
 var mass_settings = make([]string, 2)
-
-var type_memory_storage string
 
 const cookieName = "CookieCRM"
 
@@ -591,12 +578,6 @@ type ViewData struct {
 
 var InfoLogger *log.Logger
 var ErrorLogger *log.Logger
-
-func GenerateId() string {
-	b := make([]byte, 16)
-	rand.Read(b)
-	return fmt.Sprintf("%x", b)
-}
 
 type server struct{}
 
@@ -665,13 +646,13 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	CookieGet, _ := r.Cookie(cookieName)
 	if CookieGet != nil {
-		nameUserFromCookie, flagmap := cookiemap[CookieGet.Value]
+		nameUserFromCookie, flagmap := EngineCRMv.Cookie_CRM_map[CookieGet.Value]
 		if flagmap != false {
-			nameUserFromCookieStruc = nameUserFromCookie
+			nameUserFromCookieStruc = nameUserFromCookie.user
 		}
 	}
 
-	if type_memory_storage == "SQLit" && CookieGet != nil {
+	if EngineCRMv.DataBaseType == "SQLit" && CookieGet != nil {
 
 		rows, err := database.Query("select * from cookie where id = $1", CookieGet.Value)
 		if err != nil {
@@ -679,10 +660,10 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 			panic(err)
 		}
 		defer rows.Close()
-		cookie_base_s := []cookie_base{}
+		cookie_base_s := []Cookie_CRM{}
 
 		for rows.Next() {
-			p := cookie_base{}
+			p := Cookie_CRM{}
 			err := rows.Scan(&p.id, &p.user)
 			if err != nil {
 				ErrorLogger.Println(err.Error())
@@ -720,7 +701,7 @@ func get_customer(w http.ResponseWriter, r *http.Request) {
 
 	customer_id_for_find := r.URL.Query().Get("customer_id")
 
-	switch type_memory_storage {
+	switch EngineCRMv.DataBaseType {
 	case "SQLit":
 		fmt.Fprintf(w, "function not implemented for SQLit")
 	case "MongoDB":
@@ -953,18 +934,18 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 
-	if type_memory_storage == "SQLit" {
+	if EngineCRMv.DataBaseType == "SQLit" {
 
-		rows, err := database.Query("select * from users where user = $1 and password = $2", username, password)
+		rows, err := EngineCRMv.databaseSQLite.Query("select * from users where user = $1 and password = $2", username, password)
 		if err != nil {
 			ErrorLogger.Println(err.Error())
 			panic(err)
 		}
 		defer rows.Close()
-		users_base_s := []users_base{}
+		users_base_s := []Users_CRM{}
 
 		for rows.Next() {
-			p := users_base{}
+			p := Users_CRM{}
 			err := rows.Scan(&p.user, &p.password)
 			if err != nil {
 				ErrorLogger.Println(err.Error())
@@ -979,9 +960,9 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 
 	} else {
 
-		user_password, flagusers := users[username]
+		user_password_struct, flagusers := EngineCRMv.Users_CRM_map[username]
 		if flagusers == true {
-			if user_password != password {
+			if user_password_struct.password != password {
 				fmt.Fprint(w, "error auth password")
 				return
 			}
@@ -991,11 +972,11 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	idcookie := GenerateId()
+	idcookie := Cookie_CRMv.GenerateId()
 
-	if type_memory_storage == "SQLit" {
+	if EngineCRMv.DataBaseType == "SQLit" {
 
-		result, err := database.Exec("insert into cookie (id, user) values ($1, $2)",
+		result, err := EngineCRMv.databaseSQLite.Exec("insert into cookie (id, user) values ($1, $2)",
 			idcookie, username)
 		if err != nil {
 			ErrorLogger.Println(err.Error())
@@ -1005,7 +986,11 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(result.RowsAffected()) // количество добавленных строк
 
 	} else {
-		cookiemap[idcookie] = username
+		cookie_CRM_data := Cookie_CRM{
+			id:   idcookie,
+			user: username,
+		}
+		EngineCRMv.Cookie_CRM_map[idcookie] = cookie_CRM_data
 	}
 
 	cookieHttp := &http.Cookie{
@@ -1259,7 +1244,7 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 func Api_json(w http.ResponseWriter, r *http.Request) {
 
 	//1
-	CRM_Counter_Prometheus.Inc()
+	CRM_Counter_Prometheus_JSON.Inc()
 
 	if r.Method == "GET" {
 
@@ -1307,55 +1292,118 @@ func Api_json(w http.ResponseWriter, r *http.Request) {
 
 func Api_xml(w http.ResponseWriter, r *http.Request) {
 
+	//1
+	CRM_Counter_Prometheus_XML.Inc()
+
 	if r.Method == "GET" {
 
 		customer_map_s := EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType)
 
-		JsonString, err := json.Marshal(customer_map_s)
-		if err != nil {
-			ErrorLogger.Println(err.Error())
-			fmt.Fprintf(w, "error json:"+err.Error())
-		}
-		fmt.Fprintf(w, string(JsonString))
+		doc := etree.NewDocument()
+		//doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8"`)
 
-		xmlData, _ := xml.MarshalIndent(customer_map_s, " ", "  ")
-		fmt.Fprintf(w, string(xmlData))
+		Custromers := doc.CreateElement("Custromers")
 
-		test_rez_slice := []CustomerStruct_xml{}
-		//var test_rez []Customer_struct
-		if err := xml.Unmarshal(xmlData, &test_rez_slice); err != nil {
-			panic(err)
+		for _, p := range customer_map_s {
+			Custromer := Custromers.CreateElement("Custromer")
+			Custromer.CreateAttr("value", p.Customer_id)
+
+			id := Custromer.CreateElement("Customer_id")
+			id.CreateAttr("value", p.Customer_id)
+			name := Custromer.CreateElement("Customer_name")
+			name.CreateAttr("value", p.Customer_name)
+			type1 := Custromer.CreateElement("Customer_type")
+			type1.CreateAttr("value", p.Customer_type)
+			email := Custromer.CreateElement("Customer_email")
+			email.CreateAttr("value", p.Customer_email)
 		}
-		fmt.Println(test_rez_slice)
+
+		//doc.CreateText("/xml")
+
+		doc.Indent(2)
+		XMLString, _ := doc.WriteToString()
+
+		fmt.Fprintf(w, XMLString)
 
 	} else {
 
-		// body, err := ioutil.ReadAll(r.Body)
-		// if err != nil {
-		// 	ErrorLogger.Println(err.Error())
-		// 	fmt.Fprintf(w, err.Error())
+		// test_rez_slice := []CustomerStruct_xml{}
+		// //var test_rez []Customer_struct
+		// if err := xml.Unmarshal(xmlData, &test_rez_slice); err != nil {
+		// 	panic(err)
 		// }
+		// fmt.Println(test_rez_slice)
 
-		// var customer_map_json = make(map[string]Customer_struct)
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, err.Error())
+		}
 
-		// err = json.Unmarshal(body, &customer_map_json)
-		// if err != nil {
-		// 	ErrorLogger.Println(err.Error())
-		// 	fmt.Fprintf(w, err.Error())
-		// }
+		body = []byte(`<Custromers>
+		 <Custromer value="777">
+		   <Customer_id value="777"/>
+		   <Customer_name value="Dmitry"/>
+		   <Customer_type value="Cust"/>
+		   <Customer_email value="fff@mail.ru"/>
+		 </Custromer>
+		 <Custromer value="666">
+		   <Customer_id value="666"/>
+		   <Customer_name value="Alex"/>
+		   <Customer_type value="Cust_Fiz"/>
+		   <Customer_email value="44fish@mail.ru"/>
+		 </Custromer>
+		</Custromers>`)
 
-		// for _, p := range customer_map_json {
-		// 	EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, p)
-		// }
+		doc := etree.NewDocument()
+		if err := doc.ReadFromBytes(body); err != nil {
+			panic(err)
+		}
 
-		// fmt.Fprintf(w, string(body))
+		var customer_map_xml = make(map[string]Customer_struct)
+
+		Custromers := doc.SelectElement("Custromers")
+
+		for _, Custromer := range Custromers.SelectElements("Custromer") {
+
+			Customer_struct := Customer_struct{}
+			//fmt.Println("CHILD element:", Custromer.Tag)
+			if Customer_id := Custromer.SelectElement("Customer_id"); Customer_id != nil {
+				value := Customer_id.SelectAttrValue("value", "unknown")
+				Customer_struct.Customer_id = value
+			}
+			if Customer_name := Custromer.SelectElement("Customer_name"); Customer_name != nil {
+				value := Customer_name.SelectAttrValue("value", "unknown")
+				Customer_struct.Customer_name = value
+			}
+			if Customer_type := Custromer.SelectElement("Customer_type"); Customer_type != nil {
+				value := Customer_type.SelectAttrValue("value", "unknown")
+				Customer_struct.Customer_type = value
+			}
+
+			if Customer_email := Custromer.SelectElement("Customer_email"); Customer_email != nil {
+				value := Customer_email.SelectAttrValue("value", "unknown")
+				Customer_struct.Customer_email = value
+			}
+
+			customer_map_xml[Customer_struct.Customer_id] = Customer_struct
+			// for _, attr := range Custromer.Attr {
+			// 	fmt.Printf("  ATTR: %s=%s\n", attr.Key, attr.Value)
+			// }
+		}
+
+		for _, p := range customer_map_xml {
+			EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, p)
+		}
+
+		fmt.Fprintf(w, string(body))
+
 	}
 }
 
 func initLog() {
 	file, err := os.OpenFile("./logs/logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
-		ErrorLogger.Println(err.Error())
 		log.Fatal(err)
 	}
 
@@ -1384,11 +1432,17 @@ func intiRedisClient(Addr string) *redis.Client {
 }
 
 func initPrometheus() {
-	CRM_Counter_Prometheus = prometheus.NewCounter(
+	CRM_Counter_Prometheus_JSON = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "CRM_Counter",
+			Name: "CRM_Counter_JSON",
 		})
-	prometheus.MustRegister(CRM_Counter_Prometheus)
+	prometheus.MustRegister(CRM_Counter_Prometheus_JSON)
+
+	CRM_Counter_Prometheus_XML = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "CRM_Counter_XML",
+		})
+	prometheus.MustRegister(CRM_Counter_Prometheus_XML)
 
 	CRM_Counter_Gauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{

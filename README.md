@@ -5,13 +5,13 @@ ERP evolution planned in future
 ### Store data
 Used SQLite, MongoDB, Redis to store data.
 ### Metrics and Monitoring
-Used by Prometheus to collect the number of JSON API calls.
+Used by Prometheus to collect the number of JSON/XML API calls.
 ### Secure
 Used HTTPS for login page.
 ### Search and Find
 Used by ElasticSearch to find data.
 ### REST API
-Used JSON API to get and write data.
+Used JSON and XML API to get and write data.
 ### Front-end
 Uses HTML and some JavaScript.
 ### Mail
