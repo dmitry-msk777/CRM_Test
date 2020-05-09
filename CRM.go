@@ -48,7 +48,8 @@ import (
 
 	"net"
 
-	pb "../CRM_Test/proto"
+	//pb "../CRM_Test/proto"
+	pb "github.com/dmitry-msk777/CRM_Test/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
@@ -549,11 +550,10 @@ type FindOneRow_Resolver struct {
 	v *Customer_struct
 }
 
-func (r *FindOneRow_Resolver) Customer_id() string   { return r.v.Customer_id }
-func (r *FindOneRow_Resolver) Customer_name() string { return r.v.Customer_name }
-func (r *FindOneRow_Resolver) Customer_type() string { return r.v.Customer_type }
-
-//func (r *FindOneRow_Resolver) Customer_email() string { return r.v.Customer_email }
+func (r *FindOneRow_Resolver) Customer_id() string    { return r.v.Customer_id }
+func (r *FindOneRow_Resolver) Customer_name() string  { return r.v.Customer_name }
+func (r *FindOneRow_Resolver) Customer_type() string  { return r.v.Customer_type }
+func (r *FindOneRow_Resolver) Customer_email() string { return r.v.Customer_email }
 
 func (q *query) FindOneRow(ctx context.Context, args struct{ Customer_id string }) *FindOneRow_Resolver {
 
