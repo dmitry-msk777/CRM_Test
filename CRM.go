@@ -33,6 +33,7 @@ import (
 	"context"
 
 	DBLocal "./bd" //add extermal go module.
+
 	_ "github.com/mattn/go-sqlite3"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -50,6 +51,10 @@ import (
 	pb "../CRM_Test/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
+
+	"github.com/friendsofgo/graphiql"
+	graphql "github.com/graph-gophers/graphql-go"
+	"github.com/graph-gophers/graphql-go/relay"
 )
 
 type EngineCRM struct {
@@ -75,16 +80,17 @@ func (EngineCRM *EngineCRM) SetSettings(Global_settings Global_settings) {
 
 }
 
-func (EngineCRM *EngineCRM) GetOneJSON() string {
+// Test. delete
+func (EngineCRM *EngineCRM) GetOneJSON(a interface{}) (interface{}, interface{}) {
 	JsonString, err := json.Marshal(EngineCRM.DemoDBmap)
 	if err != nil {
-		return err.Error()
+		return err.Error(), JsonString
 	}
 
-	return string(JsonString)
+	return string(JsonString), JsonString
 }
 
-func (EngineCRM *EngineCRM) InitDataBase() bool {
+func (EngineCRM *EngineCRM) InitDataBase() interface{} {
 
 	switch EngineCRMv.DataBaseType {
 	case "SQLit":
@@ -522,6 +528,43 @@ var Global_settingsV Global_settings
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
+
+//GraphQL
+const Schema = `
+type Customer_struct {
+    Customer_id: String!
+    Customer_name: String!
+	Customer_type: String!
+	Customer_email: String!
+}
+type Query {
+    FindOneRow(Customer_id: String!): Customer_struct
+}
+schema {
+    query: Query
+}
+`
+
+type FindOneRow_Resolver struct {
+	v *Customer_struct
+}
+
+func (r *FindOneRow_Resolver) Customer_id() string   { return r.v.Customer_id }
+func (r *FindOneRow_Resolver) Customer_name() string { return r.v.Customer_name }
+func (r *FindOneRow_Resolver) Customer_type() string { return r.v.Customer_type }
+
+//func (r *FindOneRow_Resolver) Customer_email() string { return r.v.Customer_email }
+
+func (q *query) FindOneRow(ctx context.Context, args struct{ Customer_id string }) *FindOneRow_Resolver {
+
+	v := EngineCRMv.FindOneRow(EngineCRMv.DataBaseType, args.Customer_id)
+	return &FindOneRow_Resolver{v: &v}
+	//return &v
+}
+
+type query struct{}
+
+//GraphQL end
 
 // not used
 type Customer_struct_bson struct {
@@ -1340,20 +1383,20 @@ func Api_xml(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, err.Error())
 		}
 
-		body = []byte(`<Custromers>
-		 <Custromer value="777">
-		   <Customer_id value="777"/>
-		   <Customer_name value="Dmitry"/>
-		   <Customer_type value="Cust"/>
-		   <Customer_email value="fff@mail.ru"/>
-		 </Custromer>
-		 <Custromer value="666">
-		   <Customer_id value="666"/>
-		   <Customer_name value="Alex"/>
-		   <Customer_type value="Cust_Fiz"/>
-		   <Customer_email value="44fish@mail.ru"/>
-		 </Custromer>
-		</Custromers>`)
+		// body = []byte(`<Custromers>
+		//  <Custromer value="777">
+		//    <Customer_id value="777"/>
+		//    <Customer_name value="Dmitry"/>
+		//    <Customer_type value="Cust"/>
+		//    <Customer_email value="fff@mail.ru"/>
+		//  </Custromer>
+		//  <Custromer value="666">
+		//    <Customer_id value="666"/>
+		//    <Customer_name value="Alex"/>
+		//    <Customer_type value="Cust_Fiz"/>
+		//    <Customer_email value="44fish@mail.ru"/>
+		//  </Custromer>
+		// </Custromers>`)
 
 		doc := etree.NewDocument()
 		if err := doc.ReadFromBytes(body); err != nil {
@@ -1550,6 +1593,22 @@ func main() {
 	httpPrometheus := http.NewServeMux()
 	httpPrometheus.Handle("/metrics", promhttp.Handler())
 	go http.ListenAndServe(":8183", httpPrometheus)
+
+	//GraphQL
+	httpGraphQL := http.NewServeMux()
+
+	schema := graphql.MustParseSchema(Schema, &query{})
+	httpGraphQL.Handle("/query", &relay.Handler{Schema: schema})
+
+	// First argument must be same as graphql handler path
+	graphiqlHandler, err := graphiql.NewGraphiqlHandler("/query")
+	if err != nil {
+		panic(err)
+	}
+	httpGraphQL.Handle("/", graphiqlHandler)
+
+	go http.ListenAndServe(":8184", httpGraphQL)
+	//GraphQL end
 
 	http.Handle("/", router)
 	http.ListenAndServe(":8181", nil)

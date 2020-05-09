@@ -18,6 +18,18 @@ Uses HTML and some JavaScript.
 Implemented the function of sending letters to the mail server
 ### gRPC
 Used gRPC to get and write data.
+### GraphQL
+Search by customer ID, example below
+```graphql
+{
+  FindOneRow(Customer_id: "777"){
+    Customer_id
+    Customer_name
+    Customer_type
+    Customer_email
+  }
+}
+```
 ### For Russian ERP system 1C
 Для системы 1С реализована обработка для интеграции, используя JSON API (GET, POST запросы)
 Так же есть реализация проверки контрагента в базе налоговой через HTTP
