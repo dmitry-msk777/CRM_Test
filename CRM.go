@@ -32,7 +32,8 @@ import (
 
 	"context"
 
-	DBLocal "./bd" //add extermal go module.
+	//DBLocal "./bd" //add extermal go module.
+	DBLocal "github.com/dmitry-msk777/CRM_Test/bd"
 
 	_ "github.com/mattn/go-sqlite3"
 	"go.mongodb.org/mongo-driver/bson"
