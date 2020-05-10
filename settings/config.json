@@ -1,1 +1,1 @@
-{"DataBaseType":"DemoRegime","Mail_smtpServer":"smtp.yandex.ru","AddressMongoBD":"mongodb://localhost:32768","AddressRedis":"localhost:32769","Mail_email":"dima-irk35@mail.ru","Mail_password":"4444"}
+{"DataBaseType":"SQLit","Mail_smtpServer":"smtp.yandex.ru","AddressMongoBD":"mongodb://localhost:32768","AddressRedis":"localhost:32769","Mail_email":"dima-irk35@mail.ru","Mail_password":"4444"}

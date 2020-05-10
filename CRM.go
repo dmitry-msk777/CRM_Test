@@ -32,8 +32,8 @@ import (
 
 	"context"
 
-	//DBLocal "./bd" //add extermal go module.
-	DBLocal "github.com/dmitry-msk777/CRM_Test/bd"
+	DBLocal "./bd" //add extermal go module.
+	//DBLocal "github.com/dmitry-msk777/CRM_Test/bd"
 
 	_ "github.com/mattn/go-sqlite3"
 	"go.mongodb.org/mongo-driver/bson"
@@ -49,8 +49,8 @@ import (
 
 	"net"
 
-	//pb "../CRM_Test/proto"
-	pb "github.com/dmitry-msk777/CRM_Test/proto"
+	pb "../CRM_Test/proto"
+	//pb "github.com/dmitry-msk777/CRM_Test/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
@@ -92,15 +92,14 @@ func (EngineCRM *EngineCRM) GetOneJSON(a interface{}) (interface{}, interface{})
 	return string(JsonString), JsonString
 }
 
-func (EngineCRM *EngineCRM) InitDataBase() interface{} {
+func (EngineCRM *EngineCRM) InitDataBase() error {
 
 	switch EngineCRMv.DataBaseType {
 	case "SQLit":
 		db, err := sql.Open("sqlite3", "./bd/SQLit/base_sqlit.db")
 
 		if err != nil {
-			ErrorLogger.Println(err.Error())
-			panic(err)
+			return err
 		}
 		database = db
 		EngineCRMv.databaseSQLite = db
@@ -115,8 +114,8 @@ func (EngineCRM *EngineCRM) InitDataBase() interface{} {
 		sql_query := "create table if not exists customer (customer_id text primary key, customer_name text, customer_type text, customer_email text);"
 		_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
 		if err != nil {
-			ErrorLogger.Println(err.Error())
 			fmt.Println("can't create table : " + err.Error())
+			return err
 		}
 
 		// CREATE TABLE "cookie" (
@@ -127,8 +126,8 @@ func (EngineCRM *EngineCRM) InitDataBase() interface{} {
 		sql_query = "create table if not exists cookie (id text primary key, user text);"
 		_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
 		if err != nil {
-			ErrorLogger.Println(err.Error())
 			fmt.Println("can't create table : " + err.Error())
+			return err
 		}
 
 		// CREATE TABLE "users" (
@@ -139,8 +138,8 @@ func (EngineCRM *EngineCRM) InitDataBase() interface{} {
 		sql_query = "create table if not exists users (user text primary key, password text);"
 		_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
 		if err != nil {
-			ErrorLogger.Println(err.Error())
 			fmt.Println("can't create table : " + err.Error())
+			return err
 		}
 
 	case "Redis":
@@ -151,7 +150,7 @@ func (EngineCRM *EngineCRM) InitDataBase() interface{} {
 		if err != nil {
 			EngineCRMv.RedisClient = nil
 			fmt.Println(pong, err)
-			return false
+			return err
 		}
 
 	case "MongoDB":
@@ -200,10 +199,10 @@ func (EngineCRM *EngineCRM) InitDataBase() interface{} {
 
 	}
 
-	return true
+	return nil
 }
 
-func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) map[string]Customer_struct {
+func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) (map[string]Customer_struct, error) {
 
 	var customer_map_s = make(map[string]Customer_struct)
 
@@ -212,8 +211,7 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) map[string]Custo
 
 		rows, err := EngineCRM.databaseSQLite.Query("select * from customer")
 		if err != nil {
-			ErrorLogger.Println(err.Error())
-			panic(err)
+			return customer_map_s, err
 		}
 		defer rows.Close()
 		Customer_struct_s := []Customer_struct{}
@@ -232,13 +230,13 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) map[string]Custo
 			customer_map_s[p.Customer_id] = p
 		}
 
-		return customer_map_s
+		return customer_map_s, nil
 
 	case "MongoDB":
 
 		cur, err := EngineCRMv.collectionMongoDB.Find(context.Background(), bson.D{})
 		if err != nil {
-			ErrorLogger.Println(err.Error())
+			return customer_map_s, err
 		}
 		defer cur.Close(context.Background())
 
@@ -250,7 +248,7 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) map[string]Custo
 
 			err := cur.Decode(&Customer_struct_out)
 			if err != nil {
-				ErrorLogger.Println(err.Error())
+				return customer_map_s, err
 			}
 
 			Customer_struct_slice = append(Customer_struct_slice, Customer_struct_out)
@@ -261,14 +259,14 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) map[string]Custo
 			// do something with raw...
 		}
 		if err := cur.Err(); err != nil {
-			ErrorLogger.Println(err.Error())
+			return customer_map_s, err
 		}
 
 		for _, p := range Customer_struct_slice {
 			customer_map_s[p.Customer_id] = p
 		}
 
-		return customer_map_s
+		return customer_map_s, nil
 
 	case "Redis":
 
@@ -289,7 +287,7 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) map[string]Custo
 
 				err = json.Unmarshal([]byte(val2), &p)
 				if err != nil {
-					ErrorLogger.Println(err.Error())
+					return customer_map_s, err
 				}
 
 				Customer_struct_slice = append(Customer_struct_slice, p)
@@ -304,15 +302,15 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) map[string]Custo
 			customer_map_s[p.Customer_id] = p
 		}
 
-		return customer_map_s
+		return customer_map_s, nil
 
 	default:
-		return EngineCRM.DemoDBmap
+		return EngineCRM.DemoDBmap, nil
 	}
 
 }
 
-func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string) Customer_struct {
+func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string) (Customer_struct, error) {
 
 	Customer_struct_out := Customer_struct{}
 
@@ -323,8 +321,7 @@ func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string) Customer_
 
 		err := row.Scan(&Customer_struct_out.Customer_id, &Customer_struct_out.Customer_name, &Customer_struct_out.Customer_type, &Customer_struct_out.Customer_email)
 		if err != nil {
-			ErrorLogger.Println(err.Error())
-			panic(err)
+			return Customer_struct_out, err
 		}
 
 	case "MongoDB":
@@ -333,9 +330,8 @@ func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string) Customer_
 		if err != nil {
 			// ErrNoDocuments means that the filter did not match any documents in the collection
 			if err == mongo.ErrNoDocuments {
-				panic(err)
+				return Customer_struct_out, err
 			}
-			log.Fatal(err)
 		}
 		fmt.Printf("found document %v", Customer_struct_out)
 
@@ -345,10 +341,10 @@ func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string) Customer_
 		Customer_struct_out = EngineCRMv.DemoDBmap[id]
 	}
 
-	return Customer_struct_out
+	return Customer_struct_out, nil
 }
 
-func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct Customer_struct) string {
+func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct Customer_struct) error {
 
 	switch DataBaseType {
 	case "SQLit":
@@ -359,8 +355,7 @@ func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct
 
 		err := row.Scan(&count)
 		if err != nil {
-			ErrorLogger.Println(err.Error())
-			return err.Error()
+			return err
 		}
 
 		if count == 0 {
@@ -369,16 +364,14 @@ func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct
 				Customer_struct.Customer_id, Customer_struct.Customer_name, Customer_struct.Customer_type, Customer_struct.Customer_email)
 
 			if err != nil {
-				ErrorLogger.Println(err.Error())
-				return err.Error()
+				return err
 			}
 		} else {
 			_, err = EngineCRMv.databaseSQLite.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
 				Customer_struct.Customer_name, Customer_struct.Customer_type, Customer_struct.Customer_email, Customer_struct.Customer_id)
 
 			if err != nil {
-				ErrorLogger.Println(err.Error())
-				return err.Error()
+				return err
 			}
 		}
 
@@ -391,8 +384,7 @@ func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct
 
 		insertResult, err := EngineCRMv.collectionMongoDB.InsertOne(ctx, Customer_struct)
 		if err != nil {
-			ErrorLogger.Println(err.Error())
-			panic(err)
+			return err
 		}
 		fmt.Println(insertResult.InsertedID)
 
@@ -418,36 +410,34 @@ func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct
 
 		JsonStr, err := json.Marshal(Customer_struct)
 		if err != nil {
-			ErrorLogger.Println(err.Error())
-			return "error json:" + err.Error()
+			return err
 		}
 
 		err = EngineCRMv.RedisClient.Set(Customer_struct.Customer_id, string(JsonStr), 0).Err()
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 	default:
 		EngineCRMv.DemoDBmap[Customer_struct.Customer_id] = Customer_struct
 	}
 
-	return ""
+	return nil
 }
 
-func (EngineCRM *EngineCRM) DeleteOneRow(DataBaseType string, id string) string {
+func (EngineCRM *EngineCRM) DeleteOneRow(DataBaseType string, id string) error {
 
 	switch DataBaseType {
 	case "SQLit":
 		_, err := EngineCRMv.databaseSQLite.Exec("delete from customer where customer_id = ?", id)
 		if err != nil {
-			ErrorLogger.Println(err.Error())
-			return err.Error()
+			return err
 		}
 	case "MongoDB":
 
 		res, err := EngineCRMv.collectionMongoDB.DeleteOne(context.TODO(), bson.D{{"customer_id", id}})
 		if err != nil {
-			ErrorLogger.Println(err.Error())
+			return err
 		}
 		fmt.Printf("deleted %v documents\n", res.DeletedCount)
 
@@ -460,7 +450,7 @@ func (EngineCRM *EngineCRM) DeleteOneRow(DataBaseType string, id string) string 
 		}
 	}
 
-	return ""
+	return nil
 
 }
 
@@ -558,7 +548,13 @@ func (r *FindOneRow_Resolver) Customer_email() string { return r.v.Customer_emai
 
 func (q *query) FindOneRow(ctx context.Context, args struct{ Customer_id string }) *FindOneRow_Resolver {
 
-	v := EngineCRMv.FindOneRow(EngineCRMv.DataBaseType, args.Customer_id)
+	v, err := EngineCRMv.FindOneRow(EngineCRMv.DataBaseType, args.Customer_id)
+
+	if err != nil {
+		ErrorLogger.Println(err.Error())
+		return nil
+	}
+
 	return &FindOneRow_Resolver{v: &v}
 	//return &v
 }
@@ -599,9 +595,33 @@ var database *sql.DB
 var collectionMongoDB *mongo.Collection
 var RedisClient *redis.Client
 
-var CRM_Counter_Prometheus_JSON prometheus.Counter
-var CRM_Counter_Prometheus_XML prometheus.Counter
-var CRM_Counter_Gauge prometheus.Gauge
+type PrometheusEngine struct {
+	CRM_Counter_Prometheus_JSON prometheus.Counter
+	CRM_Counter_Prometheus_XML  prometheus.Counter
+	CRM_Counter_Gauge           prometheus.Gauge
+}
+
+var PrometheusEngineV PrometheusEngine
+
+func (PrometheusEngine *PrometheusEngine) initPrometheus() {
+	PrometheusEngine.CRM_Counter_Prometheus_JSON = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "CRM_Counter_JSON",
+		})
+	prometheus.MustRegister(PrometheusEngine.CRM_Counter_Prometheus_JSON)
+
+	PrometheusEngine.CRM_Counter_Prometheus_XML = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "CRM_Counter_XML",
+		})
+	prometheus.MustRegister(PrometheusEngine.CRM_Counter_Prometheus_XML)
+
+	PrometheusEngine.CRM_Counter_Gauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "CRM_Gauge",
+		})
+	prometheus.MustRegister(PrometheusEngine.CRM_Counter_Gauge)
+}
 
 var customer_map = make(map[string]Customer_struct)
 
@@ -629,7 +649,12 @@ func (s *server) GET_List(ctx context.Context, in *pb.RequestGET) (*pb.ResponseG
 
 	id := in.CustomerId
 
-	Customer_struct_out := EngineCRMv.FindOneRow(EngineCRMv.DataBaseType, id)
+	Customer_struct_out, err := EngineCRMv.FindOneRow(EngineCRMv.DataBaseType, id)
+
+	if err != nil {
+		ErrorLogger.Println(err.Error())
+		return nil, nil
+	}
 
 	response := &pb.ResponseGET{
 		CustomerId:    Customer_struct_out.Customer_id,
@@ -650,7 +675,12 @@ func (s *server) POST_List(ctx context.Context, in *pb.RequestPOST) (*pb.Respons
 		Customer_email: in.CustomerEmail,
 	}
 
-	EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, Customer_struct_out)
+	err := EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, Customer_struct_out)
+
+	if err != nil {
+		ErrorLogger.Println(err.Error())
+		return nil, err
+	}
 
 	return &pb.ResponsePOST{CustomerId: "True"}, nil
 }
@@ -938,7 +968,13 @@ func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
 		Customer_email: r.FormValue("customer_email"),
 	}
 
-	EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, customer_data)
+	err := EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, customer_data)
+
+	if err != nil {
+		ErrorLogger.Println(err.Error())
+		fmt.Fprintf(w, err.Error())
+		return
+	}
 
 	http.Redirect(w, r, "/list_customer", 302)
 }
@@ -946,7 +982,7 @@ func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
 func list_customer(w http.ResponseWriter, r *http.Request) {
 
 	//prometheus
-	CRM_Counter_Gauge.Set(float64(5)) // or: Inc(), Dec(), Add(5), Dec(5),
+	PrometheusEngineV.CRM_Counter_Gauge.Set(float64(5)) // or: Inc(), Dec(), Add(5), Dec(5),
 
 	tmpl, err := template.ParseFiles("templates/list_customer.html", "templates/header.html")
 	if err != nil {
@@ -955,7 +991,15 @@ func list_customer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmpl.ExecuteTemplate(w, "list_customer", EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType))
+	customer_map_data, err := EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType)
+
+	if err != nil {
+		ErrorLogger.Println(err.Error())
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	tmpl.ExecuteTemplate(w, "list_customer", customer_map_data)
 
 }
 
@@ -1079,7 +1123,12 @@ func settings(w http.ResponseWriter, r *http.Request) {
 
 		EngineCRMv.SetSettings(Global_settingsV)
 
-		EngineCRMv.InitDataBase()
+		err := EngineCRMv.InitDataBase()
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, err.Error())
+			return
+		}
 
 		Global_settingsV.SaveSettingsOnDisk()
 
@@ -1143,7 +1192,13 @@ func EditPage(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	Customer_struct_out := EngineCRMv.FindOneRow(EngineCRMv.DataBaseType, id)
+	Customer_struct_out, err := EngineCRMv.FindOneRow(EngineCRMv.DataBaseType, id)
+
+	if err != nil {
+		ErrorLogger.Println(err.Error())
+		fmt.Fprintf(w, err.Error())
+		return
+	}
 
 	tmpl, err := template.ParseFiles("templates/edit.html", "templates/header.html")
 	if err != nil {
@@ -1183,7 +1238,13 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	EngineCRMv.DeleteOneRow(EngineCRMv.DataBaseType, id)
+	err := EngineCRMv.DeleteOneRow(EngineCRMv.DataBaseType, id)
+
+	if err != nil {
+		ErrorLogger.Println(err.Error())
+		fmt.Fprintf(w, err.Error())
+		return
+	}
 
 	http.Redirect(w, r, "/list_customer", 301)
 
@@ -1288,7 +1349,7 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 func Api_json(w http.ResponseWriter, r *http.Request) {
 
 	//1
-	CRM_Counter_Prometheus_JSON.Inc()
+	PrometheusEngineV.CRM_Counter_Prometheus_JSON.Inc()
 
 	if r.Method == "GET" {
 
@@ -1299,7 +1360,13 @@ func Api_json(w http.ResponseWriter, r *http.Request) {
 		// 	}
 		// }
 
-		customer_map_s := EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType)
+		customer_map_s, err := EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType)
+
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, err.Error())
+			return
+		}
 
 		JsonString, err := json.Marshal(customer_map_s)
 		if err != nil {
@@ -1325,7 +1392,11 @@ func Api_json(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, p := range customer_map_json {
-			EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, p)
+			err := EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, p)
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+				fmt.Println(err.Error())
+			}
 		}
 
 		fmt.Fprintf(w, string(body))
@@ -1337,11 +1408,17 @@ func Api_json(w http.ResponseWriter, r *http.Request) {
 func Api_xml(w http.ResponseWriter, r *http.Request) {
 
 	//1
-	CRM_Counter_Prometheus_XML.Inc()
+	PrometheusEngineV.CRM_Counter_Prometheus_XML.Inc()
 
 	if r.Method == "GET" {
 
-		customer_map_s := EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType)
+		customer_map_s, err := EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType)
+
+		if err != nil {
+			ErrorLogger.Println(err.Error())
+			fmt.Fprintf(w, err.Error())
+			return
+		}
 
 		doc := etree.NewDocument()
 		//doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8"`)
@@ -1437,7 +1514,11 @@ func Api_xml(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, p := range customer_map_xml {
-			EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, p)
+			err := EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, p)
+			if err != nil {
+				ErrorLogger.Println(err.Error())
+				fmt.Println(err.Error())
+			}
 		}
 
 		fmt.Fprintf(w, string(body))
@@ -1473,26 +1554,6 @@ func intiRedisClient(Addr string) *redis.Client {
 	})
 
 	return client
-}
-
-func initPrometheus() {
-	CRM_Counter_Prometheus_JSON = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "CRM_Counter_JSON",
-		})
-	prometheus.MustRegister(CRM_Counter_Prometheus_JSON)
-
-	CRM_Counter_Prometheus_XML = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "CRM_Counter_XML",
-		})
-	prometheus.MustRegister(CRM_Counter_Prometheus_XML)
-
-	CRM_Counter_Gauge = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "CRM_Gauge",
-		})
-	prometheus.MustRegister(CRM_Counter_Gauge)
 }
 
 func initgRPC() {
@@ -1532,7 +1593,12 @@ func main() {
 	// 	EngineCRMv.SetDataBaseType(*type_memory_storage_flag)
 	// }
 
-	EngineCRMv.InitDataBase()
+	err := EngineCRMv.InitDataBase()
+	if err != nil {
+		ErrorLogger.Println(err.Error())
+		fmt.Println(err.Error())
+		return
+	}
 	defer EngineCRMv.databaseSQLite.Close()
 
 	go initgRPC()
@@ -1589,7 +1655,7 @@ func main() {
 	httpsMux.Handle("/", router_HTTPS)
 	go http.ListenAndServeTLS(":8182", "./Cert/cert.pem", "./Cert/key.pem", httpsMux)
 
-	initPrometheus()
+	PrometheusEngineV.initPrometheus()
 
 	httpPrometheus := http.NewServeMux()
 	httpPrometheus.Handle("/metrics", promhttp.Handler())
