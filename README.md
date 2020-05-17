@@ -18,6 +18,8 @@ Uses HTML and some JavaScript.
 Implemented the function of sending letters to the mail server
 ### gRPC
 Used gRPC to get and write data.
+### RabbitMQ
+Implemented the function of sending changed and new customers in Queue
 ### GraphQL
 Search by customer ID, example below
 ```graphql

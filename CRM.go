@@ -17,6 +17,7 @@ import (
 	"github.com/beevik/etree"
 	"github.com/go-redis/redis/v7"
 	"github.com/gorilla/mux"
+	"github.com/streadway/amqp"
 
 	//"github.com/gorilla/sessions"
 	"encoding/base64"
@@ -65,6 +66,7 @@ type EngineCRM struct {
 	DemoDBmap         map[string]Customer_struct
 	databaseSQLite    *sql.DB
 	RedisClient       *redis.Client
+	RabbitMQ_channel  *amqp.Channel
 	Global_settings   Global_settings
 	Users_CRM_map     map[string]Users_CRM
 	Cookie_CRM_map    map[string]Cookie_CRM
@@ -422,6 +424,8 @@ func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct
 		EngineCRMv.DemoDBmap[Customer_struct.Customer_id] = Customer_struct
 	}
 
+	EngineCRMv.SendInQueue(Customer_struct)
+
 	return nil
 }
 
@@ -449,6 +453,68 @@ func (EngineCRM *EngineCRM) DeleteOneRow(DataBaseType string, id string) error {
 			delete(EngineCRMv.DemoDBmap, id)
 		}
 	}
+
+	return nil
+
+}
+
+func (EngineCRM *EngineCRM) SendInQueue(Customer_struct Customer_struct) error {
+
+	q, err := EngineCRMv.RabbitMQ_channel.QueueDeclare(
+		"Customer___add_change", // name
+		false,                   // durable
+		false,                   // delete when unused
+		false,                   // exclusive
+		false,                   // no-wait
+		nil,                     // arguments
+	)
+	if err != nil {
+		return err
+	}
+
+	bodyJSON, err := json.Marshal(Customer_struct)
+	if err != nil {
+		return err
+	}
+
+	err = EngineCRMv.RabbitMQ_channel.Publish(
+		"",     // exchange
+		q.Name, // routing key
+		false,  // mandatory
+		false,  // immediate
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        bodyJSON,
+		})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func (EngineCRM *EngineCRM) InitRabbitMQ() error {
+
+	// Experimenting with RabbitMQ on your workstation? Try the community Docker image:
+	// docker run -it --rm --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+
+	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/") //5672
+	if err != nil {
+		fmt.Println("Failed to connect to RabbitMQ")
+		return err
+	}
+	//defer conn.Close()
+
+	ch, err := conn.Channel()
+	if err != nil {
+		fmt.Println("Failed to open a channel")
+		return err
+	}
+	//defer ch.Close()
+
+	EngineCRMv.RabbitMQ_channel = ch
 
 	return nil
 
@@ -1526,6 +1592,39 @@ func Api_xml(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func Test_handler(w http.ResponseWriter, r *http.Request) {
+
+	// q, err := EngineCRMv.RabbitMQ_channel.QueueDeclare(
+	// 	"Customer___add_change", // name
+	// 	false,   // durable
+	// 	false,   // delete when unused
+	// 	false,   // exclusive
+	// 	false,   // no-wait
+	// 	nil,     // arguments
+	// )
+	// if err != nil {
+	// 	fmt.Fprintf(w, "Failed to declare a queue: "+err.Error())
+	// 	return
+	// }
+
+	// body := "222"
+	// err = EngineCRMv.RabbitMQ_channel.Publish(
+	// 	"",     // exchange
+	// 	q.Name, // routing key
+	// 	false,  // mandatory
+	// 	false,  // immediate
+	// 	amqp.Publishing{
+	// 		ContentType: "text/plain",
+	// 		Body:        []byte(body),
+	// 	})
+
+	// if err != nil {
+	// 	fmt.Fprintf(w, "Failed to publish a message: "+err.Error())
+	// }
+
+	// fmt.Fprintf(w, "Good")
+}
+
 func initLog() {
 	file, err := os.OpenFile("./logs/logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
@@ -1579,20 +1678,6 @@ func main() {
 
 	initLog()
 
-	// type_memory_storage_flag := flag.String("type_memory_storage", "", "type storage data")
-	// flag.Parse()
-
-	// if *type_memory_storage_flag == "" {
-	// 	type_memory_storage = "DemoRegime"
-
-	// 	//temporary
-	// 	type_memory_storage = "Redis"
-	// 	EngineCRMv.SetDataBaseType("Redis")
-	// } else {
-	// 	type_memory_storage = *type_memory_storage_flag
-	// 	EngineCRMv.SetDataBaseType(*type_memory_storage_flag)
-	// }
-
 	err := EngineCRMv.InitDataBase()
 	if err != nil {
 		ErrorLogger.Println(err.Error())
@@ -1602,6 +1687,8 @@ func main() {
 	defer EngineCRMv.databaseSQLite.Close()
 
 	go initgRPC()
+
+	EngineCRMv.InitRabbitMQ()
 
 	router := mux.NewRouter()
 
@@ -1620,6 +1707,8 @@ func main() {
 	router.HandleFunc("/postform_add_change_customer", postform_add_change_customer)
 
 	router.HandleFunc("/list_customer", list_customer)
+
+	router.HandleFunc("/test", Test_handler)
 
 	router.HandleFunc("/mainpage", mainpage)
 
