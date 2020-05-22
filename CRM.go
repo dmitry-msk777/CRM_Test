@@ -500,7 +500,7 @@ func (EngineCRM *EngineCRM) InitRabbitMQ() error {
 	// Experimenting with RabbitMQ on your workstation? Try the community Docker image:
 	// docker run -it --rm --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
 
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/") //5672
+	conn, err := amqp.Dial(Global_settingsV.AddressRabbitMQ) //5672
 	if err != nil {
 		fmt.Println("Failed to connect to RabbitMQ")
 		return err
@@ -534,6 +534,7 @@ type Global_settings struct {
 	Mail_smtpServer string
 	AddressMongoBD  string
 	AddressRedis    string
+	AddressRabbitMQ string
 	Mail_email      string
 	Mail_password   string
 }
@@ -1186,6 +1187,7 @@ func settings(w http.ResponseWriter, r *http.Request) {
 
 		Global_settingsV.AddressMongoBD = r.FormValue("AddressMongoBD")
 		Global_settingsV.AddressRedis = r.FormValue("AddressRedis")
+		Global_settingsV.AddressRabbitMQ = r.FormValue("AddressRabbitMQ")
 
 		EngineCRMv.SetSettings(Global_settingsV)
 
@@ -1669,6 +1671,13 @@ func initgRPC() {
 	grpcServer.Serve(listener)
 }
 
+func Test_R() {
+	for {
+		time.Sleep(100 * time.Millisecond)
+		fmt.Println("123")
+	}
+}
+
 func main() {
 
 	//fmt.Println(DBLocal.Test(5))
@@ -1687,6 +1696,8 @@ func main() {
 	defer EngineCRMv.databaseSQLite.Close()
 
 	go initgRPC()
+
+	go Test_R()
 
 	EngineCRMv.InitRabbitMQ()
 

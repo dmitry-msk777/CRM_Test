@@ -37,6 +37,16 @@
 				<input type="text" class="form-control" id="AddressMongoBD" name="AddressMongoBD"  /> <br><br>
 				{{end}}
 			</div>
+
+			<div>
+				<label>AddressRabbitMQ</label>
+				{{if .AddressRabbitMQ}}
+				<input type="text" class="form-control" id="AddressRabbitMQ" name="AddressRabbitMQ" value="{{.AddressRabbitMQ}}" /> <br><br>
+				{{else}}
+				<input type="text" class="form-control" id="AddressRabbitMQ" name="AddressRabbitMQ"  /> <br><br>
+				{{end}}
+			</div>
+
 			<div>
 				<label>AddressRedis</label>
 				{{if .AddressRedis}}
