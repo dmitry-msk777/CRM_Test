@@ -1672,9 +1672,53 @@ func initgRPC() {
 }
 
 func Test_R() {
+
+	q, err := EngineCRMv.RabbitMQ_channel.QueueDeclare(
+		"Customer___add_change", // name
+		false,                   // durable
+		false,                   // delete when unused
+		false,                   // exclusive
+		false,                   // no-wait
+		nil,                     // arguments
+	)
+
+	if err != nil {
+		fmt.Println("Failed to declare a queue: ", err)
+	}
+
+	msgs, err := EngineCRMv.RabbitMQ_channel.Consume(
+		q.Name, // queue
+		"",     // consumer
+		true,   // auto-ack
+		false,  // exclusive
+		false,  // no-local
+		false,  // no-wait
+		nil,    // args
+	)
+
+	if err != nil {
+		fmt.Println("Failed to register a consumer: ", err)
+	}
+
 	for {
 		time.Sleep(100 * time.Millisecond)
 		fmt.Println("123")
+
+		for d := range msgs {
+			log.Printf("Received a message: %s", d.Body)
+		}
+
+		// forever := make(chan bool)
+
+		// go func() {
+		// 	for d := range msgs {
+		// 		log.Printf("Received a message: %s", d.Body)
+		// 	}
+		// }()
+
+		// log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
+		// <-forever
+
 	}
 }
 
@@ -1697,9 +1741,9 @@ func main() {
 
 	go initgRPC()
 
-	go Test_R()
-
 	EngineCRMv.InitRabbitMQ()
+
+	go Test_R()
 
 	router := mux.NewRouter()
 

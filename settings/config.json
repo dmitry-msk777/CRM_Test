@@ -1,1 +1,1 @@
-{"DataBaseType":"DemoRegime","Mail_smtpServer":"smtp.yandex.ru","AddressMongoBD":"mongodb://localhost:32768","AddressRedis":"localhost:32769","AddressRabbitMQ":"amqp://guest:guest@localhost:5672/","Mail_email":"dima-irk35@mail.ru","Mail_password":"1234"}
+{"DataBaseType":"DemoRegime","Mail_smtpServer":"smtp.yandex.ru","AddressMongoBD":"mongodb://localhost:32768","AddressRedis":"localhost:32782","AddressRabbitMQ":"amqp://guest:guest@localhost:5672/","Mail_email":"dima-irk35@mail.ru","Mail_password":"1234"}
