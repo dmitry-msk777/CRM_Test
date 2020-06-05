@@ -18,5 +18,5 @@
 .vscode
 __debug_bin
 
-# Logs
-logs/*.txt
+# Logs example
+#logs/*.txt
