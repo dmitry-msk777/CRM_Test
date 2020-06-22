@@ -57,6 +57,42 @@
 			</div>
 
 			<div>
+				<label>Dadata apiKey</label>
+				{{if .Dada_apiKey}}
+				<input type="text" class="form-control" id="Dada_apiKey" name="Dada_apiKey" value="{{.Dada_apiKey}}" /> <br><br>
+				{{else}}
+				<input type="text" class="form-control" id="Dada_apiKey" name="Dada_apiKey"  /> <br><br>
+				{{end}}
+			</div>
+
+			<div>
+				<label>Dadata secretKey</label>
+				{{if .Dada_secretKey}}
+				<input type="text" class="form-control" id="Dada_secretKey" name="Dada_secretKey" value="{{.Dada_secretKey}}" /> <br><br>
+				{{else}}
+				<input type="text" class="form-control" id="Dada_secretKey" name="Dada_secretKey"  /> <br><br>
+				{{end}}
+			</div>
+
+			<div>
+				<label>UseRabbitMQ</label>
+				{{if .UseRabbitMQ}}
+				<input type="checkbox" class="form-control" id="UseRabbitMQ" name="UseRabbitMQ" checked /> <br><br>
+				{{else}}
+				<input type="checkbox" class="form-control" id="UseRabbitMQ" name="UseRabbitMQ"  /> <br><br>
+				{{end}}
+			</div>
+
+			<div>
+				<label>UsePrometheus</label>
+				{{if .UsePrometheus}}
+				<input type="checkbox" class="form-control" id="UsePrometheus" name="UsePrometheus" checked /> <br><br>
+				{{else}}
+				<input type="checkbox" class="form-control" id="UsePrometheus" name="UsePrometheus"  /> <br><br>
+				{{end}}
+			</div>
+
+			<div>
 				<label>DataBaseType</label>
 				<select id="DataBaseType" name="DataBaseType" class="form-control">
 					{{if .DataBaseType}}

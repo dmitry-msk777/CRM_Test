@@ -1,1 +1,1 @@
-{"DataBaseType":"Redis","Mail_smtpServer":"","AddressMongoBD":"","AddressRedis":"localhost:32782","AddressRabbitMQ":"","Mail_email":"","Mail_password":""}
+{"DataBaseType":"DemoRegime","Mail_smtpServer":"","AddressMongoBD":"","AddressRedis":"localhost:32782","AddressRabbitMQ":"","Mail_email":"","Mail_password":"","UseRabbitMQ":false,"UsePrometheus":true,"Dada_apiKey":"1aa37d40a1f8267955a88cb429e6bbdff3c33a31","Dada_secretKey":"b8fb31a67d75d925755b04b754c514d3e2d9fe70"}

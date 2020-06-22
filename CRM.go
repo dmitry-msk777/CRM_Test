@@ -58,6 +58,8 @@ import (
 	"github.com/friendsofgo/graphiql"
 	graphql "github.com/graph-gophers/graphql-go"
 	"github.com/graph-gophers/graphql-go/relay"
+
+	"gopkg.in/webdeskltd/dadata.v2"
 )
 
 type EngineCRM struct {
@@ -456,7 +458,9 @@ func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct
 		EngineCRMv.DemoDBmap[Customer_struct.Customer_id] = Customer_struct
 	}
 
-	EngineCRMv.SendInQueue(Customer_struct)
+	if EngineCRMv.Global_settings.UseRabbitMQ {
+		EngineCRMv.SendInQueue(Customer_struct)
+	}
 
 	return nil
 }
@@ -579,6 +583,7 @@ type Customer_struct struct {
 	Customer_name  string
 	Customer_type  string
 	Customer_email string
+	Address_Struct Address_Struct
 }
 
 type Global_settings struct {
@@ -589,6 +594,10 @@ type Global_settings struct {
 	AddressRabbitMQ string
 	Mail_email      string
 	Mail_password   string
+	UseRabbitMQ     bool
+	UsePrometheus   bool
+	Dada_apiKey     string
+	Dada_secretKey  string
 }
 
 func (GlobalSettings *Global_settings) SaveSettingsOnDisk() {
@@ -653,6 +662,11 @@ func (LoggerCRM *LoggerCRM) InitLog() {
 	LoggerCRM.ErrorLogger = log.New(file, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 
 	LoggerCRM.ErrorLogger.Println("Starting the application...")
+}
+
+type Address_Struct struct {
+	Street string
+	House  int
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1119,7 +1133,9 @@ func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
 func list_customer(w http.ResponseWriter, r *http.Request) {
 
 	//prometheus
-	PrometheusEngineV.CRM_Counter_Gauge.Set(float64(5)) // or: Inc(), Dec(), Add(5), Dec(5),
+	if EngineCRMv.Global_settings.UsePrometheus {
+		PrometheusEngineV.CRM_Counter_Gauge.Set(float64(5)) // or: Inc(), Dec(), Add(5), Dec(5),
+	}
 
 	tmpl, err := template.ParseFiles("templates/list_customer.html", "templates/header.html")
 	if err != nil {
@@ -1137,6 +1153,19 @@ func list_customer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tmpl.ExecuteTemplate(w, "list_customer", customer_map_data)
+
+}
+
+func services(w http.ResponseWriter, r *http.Request) {
+
+	tmpl, err := template.ParseFiles("templates/services.html", "templates/header.html")
+	if err != nil {
+		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	tmpl.ExecuteTemplate(w, "services", nil)
 
 }
 
@@ -1258,6 +1287,21 @@ func settings(w http.ResponseWriter, r *http.Request) {
 		EngineCRMv.Global_settings.AddressMongoBD = r.FormValue("AddressMongoBD")
 		EngineCRMv.Global_settings.AddressRedis = r.FormValue("AddressRedis")
 		EngineCRMv.Global_settings.AddressRabbitMQ = r.FormValue("AddressRabbitMQ")
+
+		EngineCRMv.Global_settings.Dada_apiKey = r.FormValue("Dada_apiKey")
+		EngineCRMv.Global_settings.Dada_secretKey = r.FormValue("Dada_secretKey")
+
+		if r.FormValue("UseRabbitMQ") == "on" {
+			EngineCRMv.Global_settings.UseRabbitMQ = true
+		} else {
+			EngineCRMv.Global_settings.UseRabbitMQ = false
+		}
+
+		if r.FormValue("UsePrometheus") == "on" {
+			EngineCRMv.Global_settings.UsePrometheus = true
+		} else {
+			EngineCRMv.Global_settings.UsePrometheus = false
+		}
 
 		EngineCRMv.SetSettings(EngineCRMv.Global_settings)
 
@@ -1484,10 +1528,67 @@ func checkINN(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func SuggestAddresses(w http.ResponseWriter, r *http.Request) {
+
+	customer_Address := r.URL.Query().Get("customer_Address")
+
+	// https://github.com/webdeskltd/dadata/blob/v2/examples_test.go
+
+	// split the line with the address has become a paid function
+	// daData := dadata.NewDaData("1aa37d40a1f8267955a88cb429e6bbdff3c33a31", "b8fb31a67d75d925755b04b754c514d3e2d9fe70")
+	// //func ExampleDaData_CleanAddresses() {
+	// addresses, err := daData.CleanAddresses("ул.Правды 26", "пер.Расковой 5")
+	// if nil != err {
+	// 	fmt.Println(err)
+	// }
+	// for _, address := range addresses {
+	// 	fmt.Println(address.StreetTypeFull)
+	// 	fmt.Println(address.Street)
+	// 	fmt.Println(address.House)
+	// }
+	// // Output:
+	// // улица
+	// // Правды
+	// // 26
+	// // переулок
+	// // Расковой
+	// // 5
+	// //}
+
+	//func ExampleDaData_SuggestAddresses() {
+
+	daData2 := dadata.NewDaData(EngineCRMv.Global_settings.Dada_apiKey, EngineCRMv.Global_settings.Dada_secretKey)
+
+	addresses2, err := daData2.SuggestAddresses(dadata.SuggestRequestParams{Query: customer_Address, Count: 5})
+	if nil != err {
+		fmt.Fprintf(w, err.Error())
+	}
+
+	for _, address2 := range addresses2 {
+		fmt.Fprintf(w, address2.UnrestrictedValue)
+		fmt.Fprintf(w, address2.Data.Street)
+		fmt.Fprintf(w, address2.Data.FiasLevel)
+		fmt.Fprintln(w, "")
+	}
+
+	// Output:
+	// г Москва, Пресненская наб
+	// Пресненская
+	// 7
+	// г Москва, ул Пресненский Вал
+	// Пресненский Вал
+	// 7
+
+	//}
+
+}
+
 func Api_json(w http.ResponseWriter, r *http.Request) {
 
-	//1
-	PrometheusEngineV.CRM_Counter_Prometheus_JSON.Inc()
+	if EngineCRMv.Global_settings.UsePrometheus {
+		//1
+		PrometheusEngineV.CRM_Counter_Prometheus_JSON.Inc()
+	}
 
 	if r.Method == "GET" {
 
@@ -1545,8 +1646,10 @@ func Api_json(w http.ResponseWriter, r *http.Request) {
 
 func Api_xml(w http.ResponseWriter, r *http.Request) {
 
-	//1
-	PrometheusEngineV.CRM_Counter_Prometheus_XML.Inc()
+	if EngineCRMv.Global_settings.UsePrometheus {
+		//1
+		PrometheusEngineV.CRM_Counter_Prometheus_XML.Inc()
+	}
 
 	if r.Method == "GET" {
 
@@ -1666,35 +1769,59 @@ func Api_xml(w http.ResponseWriter, r *http.Request) {
 
 func Test_handler(w http.ResponseWriter, r *http.Request) {
 
-	// q, err := EngineCRMv.RabbitMQ_channel.QueueDeclare(
-	// 	"Customer___add_change", // name
-	// 	false,   // durable
-	// 	false,   // delete when unused
-	// 	false,   // exclusive
-	// 	false,   // no-wait
-	// 	nil,     // arguments
-	// )
-	// if err != nil {
-	// 	fmt.Fprintf(w, "Failed to declare a queue: "+err.Error())
-	// 	return
-	// }
+	// https://github.com/webdeskltd/dadata/blob/v2/examples_test.go
 
-	// body := "222"
-	// err = EngineCRMv.RabbitMQ_channel.Publish(
-	// 	"",     // exchange
-	// 	q.Name, // routing key
-	// 	false,  // mandatory
-	// 	false,  // immediate
-	// 	amqp.Publishing{
-	// 		ContentType: "text/plain",
-	// 		Body:        []byte(body),
-	// 	})
+	daData := dadata.NewDaData("1aa37d40a1f8267955a88cb429e6bbdff3c33a31", "b8fb31a67d75d925755b04b754c514d3e2d9fe70")
 
-	// if err != nil {
-	// 	fmt.Fprintf(w, "Failed to publish a message: "+err.Error())
-	// }
+	//func ExampleDaData_CleanAddresses() {
 
-	// fmt.Fprintf(w, "Good")
+	addresses, err := daData.CleanAddresses("ул.Правды 26", "пер.Расковой 5")
+
+	if nil != err {
+		fmt.Println(err)
+	}
+
+	for _, address := range addresses {
+		fmt.Println(address.StreetTypeFull)
+		fmt.Println(address.Street)
+		fmt.Println(address.House)
+	}
+
+	// Output:
+	// улица
+	// Правды
+	// 26
+	// переулок
+	// Расковой
+	// 5
+
+	//}
+
+	//func ExampleDaData_SuggestAddresses() {
+
+	daData2 := dadata.NewDaData("1aa37d40a1f8267955a88cb429e6bbdff3c33a31", "b8fb31a67d75d925755b04b754c514d3e2d9fe70")
+
+	addresses2, err := daData2.SuggestAddresses(dadata.SuggestRequestParams{Query: "Преснен", Count: 2})
+	if nil != err {
+		fmt.Println(err)
+	}
+
+	for _, address2 := range addresses2 {
+		fmt.Println(address2.UnrestrictedValue)
+		fmt.Println(address2.Data.Street)
+		fmt.Println(address2.Data.FiasLevel)
+	}
+
+	// Output:
+	// г Москва, Пресненская наб
+	// Пресненская
+	// 7
+	// г Москва, ул Пресненский Вал
+	// Пресненский Вал
+	// 7
+
+	//}
+
 }
 
 func infoTeam(rw http.ResponseWriter, r *http.Request) {
@@ -1807,9 +1934,10 @@ func main() {
 
 	go Test_Chan()
 
-	EngineCRMv.InitRabbitMQ()
-
-	go RabbitMQ_Consumer()
+	if EngineCRMv.Global_settings.UseRabbitMQ {
+		EngineCRMv.InitRabbitMQ()
+		go RabbitMQ_Consumer()
+	}
 
 	router := mux.NewRouter()
 
@@ -1823,6 +1951,9 @@ func main() {
 
 	//http://localhost:8181/checkINN?customer_INN=7702807750
 	router.HandleFunc("/checkINN", checkINN)
+
+	//http://localhost:8181/SuggestAddresses?customer_Address=Рязанский
+	router.HandleFunc("/SuggestAddresses", SuggestAddresses)
 
 	router.HandleFunc("/add_change_customer", add_change_customer)
 	router.HandleFunc("/postform_add_change_customer", postform_add_change_customer)
@@ -1838,6 +1969,7 @@ func main() {
 	router.HandleFunc("/loginPost", RedirectToHTTPS)
 
 	router.HandleFunc("/settings", settings)
+	router.HandleFunc("/services", services)
 
 	router.HandleFunc("/send_message", send_message)
 
@@ -1865,11 +1997,13 @@ func main() {
 	httpsMux.Handle("/", router_HTTPS)
 	go http.ListenAndServeTLS(":8182", "./Cert/cert.pem", "./Cert/key.pem", httpsMux)
 
-	PrometheusEngineV.initPrometheus()
+	if EngineCRMv.Global_settings.UsePrometheus {
+		PrometheusEngineV.initPrometheus()
 
-	httpPrometheus := http.NewServeMux()
-	httpPrometheus.Handle("/metrics", promhttp.Handler())
-	go http.ListenAndServe(":8183", httpPrometheus)
+		httpPrometheus := http.NewServeMux()
+		httpPrometheus.Handle("/metrics", promhttp.Handler())
+		go http.ListenAndServe(":8183", httpPrometheus)
+	}
 
 	//GraphQL
 	httpGraphQL := http.NewServeMux()
