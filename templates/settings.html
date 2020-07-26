@@ -75,6 +75,24 @@
 			</div>
 
 			<div>
+				<label>gORM Data type</label>
+				{{if .GORM_DataType}}
+				<input type="text" class="form-control" id="GORM_DataType" name="GORM_DataType" value="{{.GORM_DataType}}" /> <br><br>
+				{{else}}
+				<input type="text" class="form-control" id="GORM_DataType" name="GORM_DataType"  /> <br><br>
+				{{end}}
+			</div>
+
+			<div>
+				<label>gORM Connect string</label>
+				{{if .GORM_ConnectString}}
+				<input type="text" class="form-control" id="GORM_ConnectString" name="GORM_ConnectString" value="{{.GORM_ConnectString}}" /> <br><br>
+				{{else}}
+				<input type="text" class="form-control" id="GORM_ConnectString" name="GORM_ConnectString"  /> <br><br>
+				{{end}}
+			</div>
+
+			<div>
 				<label>UseRabbitMQ</label>
 				{{if .UseRabbitMQ}}
 				<input type="checkbox" class="form-control" id="UseRabbitMQ" name="UseRabbitMQ" checked /> <br><br>
@@ -103,6 +121,7 @@
 					<option value="SQLit">SQLit</option>
 					<option value="MongoDB">MongoDB</option>
 					<option value="Redis">Redis</option>
+					<option value="gORM">gORM</option>
 					<option value="DemoRegime">DemoRegime</option>
 				  </select>
 

@@ -33,8 +33,10 @@ import (
 
 	"context"
 
-	DBLocal "./bd" //add extermal go module.
-	//DBLocal "github.com/dmitry-msk777/CRM_Test/bd"
+	//DBLocal "./bd" //add extermal go module.
+	DBLocal "github.com/dmitry-msk777/CRM_Test/bd"
+
+	RootSctuct "github.com/dmitry-msk777/CRM_Test/RootDescription"
 
 	_ "github.com/mattn/go-sqlite3"
 	"go.mongodb.org/mongo-driver/bson"
@@ -50,8 +52,8 @@ import (
 
 	"net"
 
-	pb "../CRM_Test/proto"
-	//pb "github.com/dmitry-msk777/CRM_Test/proto"
+	//pb "../CRM_Test/proto"
+	pb "github.com/dmitry-msk777/CRM_Test/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
@@ -59,24 +61,27 @@ import (
 	graphql "github.com/graph-gophers/graphql-go"
 	"github.com/graph-gophers/graphql-go/relay"
 
+	//gorm "gocode/CRM_test/CRM_Test/gorm" //add extermal go module.
+	gorm "github.com/dmitry-msk777/CRM_Test/gorm"
+
 	"gopkg.in/webdeskltd/dadata.v2"
 )
 
 type EngineCRM struct {
 	DataBaseType      string
-	collectionMongoDB *mongo.Collection
-	DemoDBmap         map[string]Customer_struct
-	databaseSQLite    *sql.DB
+	CollectionMongoDB *mongo.Collection
+	DemoDBmap         map[string]RootSctuct.Customer_struct
+	DatabaseSQLite    *sql.DB
 	RedisClient       *redis.Client
 	RabbitMQ_channel  *amqp.Channel
-	Global_settings   Global_settings
+	Global_settings   RootSctuct.Global_settings
 	Users_CRM_map     map[string]Users_CRM
 	Cookie_CRM_map    map[string]Cookie_CRM
-	testChan          chan string
+	TestChan          chan string
 	LoggerCRM         LoggerCRM
 }
 
-func (EngineCRM *EngineCRM) SetSettings(Global_settings Global_settings) {
+func (EngineCRM *EngineCRM) SetSettings(Global_settings RootSctuct.Global_settings) {
 
 	EngineCRM.DataBaseType = Global_settings.DataBaseType
 	if Global_settings.DataBaseType == "" {
@@ -101,7 +106,7 @@ func (EngineCRM *EngineCRM) GetOneJSON(a interface{}) (interface{}, interface{})
 
 func (EngineCRM *EngineCRM) InitDataBase() error {
 
-	switch EngineCRMv.DataBaseType {
+	switch EngineCRM.DataBaseType {
 	case "SQLit":
 		db, err := sql.Open("sqlite3", "./bd/SQLit/base_sqlit.db")
 
@@ -109,7 +114,7 @@ func (EngineCRM *EngineCRM) InitDataBase() error {
 			return err
 		}
 		database = db
-		EngineCRMv.databaseSQLite = db
+		EngineCRM.DatabaseSQLite = db
 
 		// CREATE TABLE "customer" (
 		// 	"customer_id"	TEXT NOT NULL,
@@ -119,7 +124,7 @@ func (EngineCRM *EngineCRM) InitDataBase() error {
 		// 	PRIMARY KEY("customer_id")
 		// );
 		sql_query := "create table if not exists customer (customer_id text primary key, customer_name text, customer_type text, customer_email text);"
-		_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
+		_, err = EngineCRM.DatabaseSQLite.Exec(sql_query)
 		if err != nil {
 			fmt.Println("can't create table : " + err.Error())
 			return err
@@ -131,7 +136,7 @@ func (EngineCRM *EngineCRM) InitDataBase() error {
 		// 	PRIMARY KEY("id")
 		// );
 		sql_query = "create table if not exists cookie (id text primary key, user text);"
-		_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
+		_, err = EngineCRM.DatabaseSQLite.Exec(sql_query)
 		if err != nil {
 			fmt.Println("can't create table : " + err.Error())
 			return err
@@ -143,7 +148,7 @@ func (EngineCRM *EngineCRM) InitDataBase() error {
 		// 	PRIMARY KEY("user")
 		// );
 		sql_query = "create table if not exists users (user text primary key, password text);"
-		_, err = EngineCRMv.databaseSQLite.Exec(sql_query)
+		_, err = EngineCRM.DatabaseSQLite.Exec(sql_query)
 		if err != nil {
 			fmt.Println("can't create table : " + err.Error())
 			return err
@@ -151,11 +156,11 @@ func (EngineCRM *EngineCRM) InitDataBase() error {
 
 	case "Redis":
 		//localhost:32769
-		EngineCRMv.RedisClient = intiRedisClient(EngineCRMv.Global_settings.AddressRedis)
+		EngineCRM.RedisClient = intiRedisClient(EngineCRM.Global_settings.AddressRedis)
 
-		pong, err := EngineCRMv.RedisClient.Ping().Result()
+		pong, err := EngineCRM.RedisClient.Ping().Result()
 		if err != nil {
-			EngineCRMv.RedisClient = nil
+			EngineCRM.RedisClient = nil
 			fmt.Println(pong, err)
 			return err
 		}
@@ -165,35 +170,35 @@ func (EngineCRM *EngineCRM) InitDataBase() error {
 		//temporary
 		//collectionMongoDB = GetCollectionMongoBD("CRM", "customers", "mongodb://localhost:32768")
 		//"mongodb://localhost:32768"
-		EngineCRMv.collectionMongoDB = DBLocal.GetCollectionMongoBD("CRM", "customers", EngineCRMv.Global_settings.AddressMongoBD)
+		EngineCRM.CollectionMongoDB = DBLocal.GetCollectionMongoBD("CRM", "customers", EngineCRMv.Global_settings.AddressMongoBD)
 
 	default:
 
-		var ArrayCustomer []Customer_struct
+		var ArrayCustomer []RootSctuct.Customer_struct
 
-		ArrayCustomer = append(ArrayCustomer, Customer_struct{
+		ArrayCustomer = append(ArrayCustomer, RootSctuct.Customer_struct{
 			Customer_id:    "777",
 			Customer_name:  "Dmitry",
 			Customer_type:  "Cust",
 			Customer_email: "fff@mail.ru",
 		})
 
-		ArrayCustomer = append(ArrayCustomer, Customer_struct{
+		ArrayCustomer = append(ArrayCustomer, RootSctuct.Customer_struct{
 			Customer_id:    "666",
 			Customer_name:  "Alex",
 			Customer_type:  "Cust_Fiz",
 			Customer_email: "44fish@mail.ru",
 		})
 
-		var mapForEngineCRM = make(map[string]Customer_struct)
+		var mapForEngineCRM = make(map[string]RootSctuct.Customer_struct)
 		EngineCRM.DemoDBmap = mapForEngineCRM
 
 		var users_CRM_def = make(map[string]Users_CRM)
 		EngineCRM.Users_CRM_map = users_CRM_def
 
 		users_CRM_data := Users_CRM{
-			user:     "admin",
-			password: "1234"}
+			User:     "admin",
+			Password: "1234"}
 
 		EngineCRM.Users_CRM_map["admin"] = users_CRM_data
 
@@ -204,32 +209,32 @@ func (EngineCRM *EngineCRM) InitDataBase() error {
 			EngineCRM.DemoDBmap[p.Customer_id] = p
 		}
 
-		EngineCRMv.testChan = make(chan string)
+		EngineCRM.TestChan = make(chan string)
 
 	}
 
 	return nil
 }
 
-func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) (map[string]Customer_struct, error) {
+func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) (map[string]RootSctuct.Customer_struct, error) {
 
-	var customer_map_s = make(map[string]Customer_struct)
+	var customer_map_s = make(map[string]RootSctuct.Customer_struct)
 
 	switch DataBaseType {
 	case "SQLit":
 
-		rows, err := EngineCRM.databaseSQLite.Query("select * from customer")
+		rows, err := EngineCRM.DatabaseSQLite.Query("select * from customer")
 		if err != nil {
 			return customer_map_s, err
 		}
 		defer rows.Close()
-		Customer_struct_s := []Customer_struct{}
+		Customer_struct_s := []RootSctuct.Customer_struct{}
 
 		for rows.Next() {
-			p := Customer_struct{}
+			p := RootSctuct.Customer_struct{}
 			err := rows.Scan(&p.Customer_id, &p.Customer_name, &p.Customer_type, &p.Customer_email)
 			if err != nil {
-				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+				EngineCRM.LoggerCRM.ErrorLogger.Println(err.Error())
 				fmt.Println(err)
 				continue
 			}
@@ -243,17 +248,17 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) (map[string]Cust
 
 	case "MongoDB":
 
-		cur, err := EngineCRMv.collectionMongoDB.Find(context.Background(), bson.D{})
+		cur, err := EngineCRM.CollectionMongoDB.Find(context.Background(), bson.D{})
 		if err != nil {
 			return customer_map_s, err
 		}
 		defer cur.Close(context.Background())
 
-		Customer_struct_slice := []Customer_struct{}
+		Customer_struct_slice := []RootSctuct.Customer_struct{}
 
 		for cur.Next(context.Background()) {
 
-			Customer_struct_out := Customer_struct{}
+			Customer_struct_out := RootSctuct.Customer_struct{}
 
 			err := cur.Decode(&Customer_struct_out)
 			if err != nil {
@@ -280,36 +285,36 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) (map[string]Cust
 	case "Redis":
 
 		var cursor uint64
-		ScanCmd := EngineCRMv.RedisClient.Scan(cursor, "", 100)
+		ScanCmd := EngineCRM.RedisClient.Scan(cursor, "", 100)
 		//fmt.Println(ScanCmd)
 
 		cursor1, _, err := ScanCmd.Result()
 
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println("key2 does not exist")
+			EngineCRM.LoggerCRM.ErrorLogger.Println("key2 does not exist")
 			return customer_map_s, err
 		}
 
 		//fmt.Println(cursor1, keys1)
 
-		Customer_struct_slice := []Customer_struct{}
+		Customer_struct_slice := []RootSctuct.Customer_struct{}
 		for _, value := range cursor1 {
-			p := Customer_struct{}
+			p := RootSctuct.Customer_struct{}
 			//IDString := strconv.FormatInt(int64(i), 10)
-			val2, err := EngineCRMv.RedisClient.Get(value).Result()
+			val2, err := EngineCRM.RedisClient.Get(value).Result()
 			if err == redis.Nil {
-				EngineCRMv.LoggerCRM.ErrorLogger.Println("key2 does not exist")
+				EngineCRM.LoggerCRM.ErrorLogger.Println("key2 does not exist")
 				continue
 				//fmt.Println("key2 does not exist")
 			} else if err != nil {
-				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+				EngineCRM.LoggerCRM.ErrorLogger.Println(err.Error())
 				continue
 			} else {
 				//fmt.Println("key2", val2)
 
 				err = json.Unmarshal([]byte(val2), &p)
 				if err != nil {
-					EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+					EngineCRM.LoggerCRM.ErrorLogger.Println(err.Error())
 					continue
 				}
 
@@ -323,20 +328,33 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) (map[string]Cust
 
 		return customer_map_s, nil
 
+	case "gORM":
+
+		Customer_struct_slice_gorm, err := gorm.GetAllCustomer(EngineCRMv.Global_settings)
+		if err != nil {
+			return customer_map_s, err
+		}
+
+		for _, p := range Customer_struct_slice_gorm {
+			customer_map_s[p.Customer_id] = p
+		}
+
+		return customer_map_s, nil
+
 	default:
 		return EngineCRM.DemoDBmap, nil
 	}
 
 }
 
-func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string) (Customer_struct, error) {
+func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string) (RootSctuct.Customer_struct, error) {
 
-	Customer_struct_out := Customer_struct{}
+	Customer_struct_out := RootSctuct.Customer_struct{}
 
 	switch DataBaseType {
 	case "SQLit":
 
-		row := EngineCRMv.databaseSQLite.QueryRow("select * from customer where customer_id = ?", id)
+		row := EngineCRM.DatabaseSQLite.QueryRow("select * from customer where customer_id = ?", id)
 
 		err := row.Scan(&Customer_struct_out.Customer_id, &Customer_struct_out.Customer_name, &Customer_struct_out.Customer_type, &Customer_struct_out.Customer_email)
 		if err != nil {
@@ -345,7 +363,7 @@ func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string) (Customer
 
 	case "MongoDB":
 
-		err := EngineCRMv.collectionMongoDB.FindOne(context.TODO(), bson.D{{"customer_id", id}}).Decode(&Customer_struct_out)
+		err := EngineCRM.CollectionMongoDB.FindOne(context.TODO(), bson.D{{"customer_id", id}}).Decode(&Customer_struct_out)
 		if err != nil {
 			// ErrNoDocuments means that the filter did not match any documents in the collection
 			if err == mongo.ErrNoDocuments {
@@ -356,20 +374,30 @@ func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string) (Customer
 
 	case "Redis":
 
-		val2, err := EngineCRMv.RedisClient.Get(id).Result()
+		val2, err := EngineCRM.RedisClient.Get(id).Result()
 		if err == redis.Nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println("key2 does not exist")
+			EngineCRM.LoggerCRM.ErrorLogger.Println("key2 does not exist")
 			return Customer_struct_out, err
 		} else if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			EngineCRM.LoggerCRM.ErrorLogger.Println(err.Error())
 			return Customer_struct_out, err
 		} else {
 			err = json.Unmarshal([]byte(val2), &Customer_struct_out)
 			if err != nil {
-				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+				EngineCRM.LoggerCRM.ErrorLogger.Println(err.Error())
 				return Customer_struct_out, err
 			}
 
+			return Customer_struct_out, nil
+		}
+
+	case "gORM":
+
+		Customer_struct, err := gorm.FindOneRow(id, Global_settingsV)
+
+		Customer_struct_out = Customer_struct
+
+		if err != nil {
 			return Customer_struct_out, nil
 		}
 
@@ -380,14 +408,14 @@ func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string) (Customer
 	return Customer_struct_out, nil
 }
 
-func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct Customer_struct) error {
+func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct RootSctuct.Customer_struct) error {
 
 	switch DataBaseType {
 	case "SQLit":
 
 		var count int
 
-		row := EngineCRMv.databaseSQLite.QueryRow("select COUNT(*) from customer where customer_id = ?", Customer_struct.Customer_id)
+		row := EngineCRM.DatabaseSQLite.QueryRow("select COUNT(*) from customer where customer_id = ?", Customer_struct.Customer_id)
 
 		err := row.Scan(&count)
 		if err != nil {
@@ -396,14 +424,14 @@ func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct
 
 		if count == 0 {
 
-			_, err = EngineCRMv.databaseSQLite.Exec("insert into customer (customer_id, customer_name, customer_type, customer_email) values (?, ?, ?, ?)",
+			_, err = EngineCRM.DatabaseSQLite.Exec("insert into customer (customer_id, customer_name, customer_type, customer_email) values (?, ?, ?, ?)",
 				Customer_struct.Customer_id, Customer_struct.Customer_name, Customer_struct.Customer_type, Customer_struct.Customer_email)
 
 			if err != nil {
 				return err
 			}
 		} else {
-			_, err = EngineCRMv.databaseSQLite.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
+			_, err = EngineCRM.DatabaseSQLite.Exec("update customer set customer_name=?, customer_type=?, customer_email=? where customer_id=?",
 				Customer_struct.Customer_name, Customer_struct.Customer_type, Customer_struct.Customer_email, Customer_struct.Customer_id)
 
 			if err != nil {
@@ -418,7 +446,7 @@ func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct
 		//maybe use? insertMany(): добавляет несколько документов
 		//before adding find db.users.find()
 
-		insertResult, err := EngineCRMv.collectionMongoDB.InsertOne(ctx, Customer_struct)
+		insertResult, err := EngineCRM.CollectionMongoDB.InsertOne(ctx, Customer_struct)
 		if err != nil {
 			return err
 		}
@@ -449,17 +477,25 @@ func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct
 			return err
 		}
 
-		err = EngineCRMv.RedisClient.Set(Customer_struct.Customer_id, string(JsonStr), 0).Err()
+		err = EngineCRM.RedisClient.Set(Customer_struct.Customer_id, string(JsonStr), 0).Err()
+		if err != nil {
+			return err
+		}
+
+	case "gORM":
+
+		err := gorm.AddChangeOneRow(Customer_struct, Global_settingsV)
+
 		if err != nil {
 			return err
 		}
 
 	default:
-		EngineCRMv.DemoDBmap[Customer_struct.Customer_id] = Customer_struct
+		EngineCRM.DemoDBmap[Customer_struct.Customer_id] = Customer_struct
 	}
 
 	if EngineCRMv.Global_settings.UseRabbitMQ {
-		EngineCRMv.SendInQueue(Customer_struct)
+		EngineCRM.SendInQueue(Customer_struct)
 	}
 
 	return nil
@@ -469,13 +505,13 @@ func (EngineCRM *EngineCRM) DeleteOneRow(DataBaseType string, id string) error {
 
 	switch DataBaseType {
 	case "SQLit":
-		_, err := EngineCRMv.databaseSQLite.Exec("delete from customer where customer_id = ?", id)
+		_, err := EngineCRM.DatabaseSQLite.Exec("delete from customer where customer_id = ?", id)
 		if err != nil {
 			return err
 		}
 	case "MongoDB":
 
-		res, err := EngineCRMv.collectionMongoDB.DeleteOne(context.TODO(), bson.D{{"customer_id", id}})
+		res, err := EngineCRM.CollectionMongoDB.DeleteOne(context.TODO(), bson.D{{"customer_id", id}})
 		if err != nil {
 			return err
 		}
@@ -484,24 +520,32 @@ func (EngineCRM *EngineCRM) DeleteOneRow(DataBaseType string, id string) error {
 	case "Redis":
 
 		//iter := EngineCRMv.RedisClient.Scan(0, "prefix*", 0).Iterator()
-		iter := EngineCRMv.RedisClient.Scan(0, id, 0).Iterator()
+		iter := EngineCRM.RedisClient.Scan(0, id, 0).Iterator()
 		for iter.Next() {
-			err := EngineCRMv.RedisClient.Del(iter.Val()).Err()
+			err := EngineCRM.RedisClient.Del(iter.Val()).Err()
 			if err != nil {
-				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+				EngineCRM.LoggerCRM.ErrorLogger.Println(err.Error())
 				return err
 			}
 			//fmt.Println(iter.Val())
 		}
 		if err := iter.Err(); err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			EngineCRM.LoggerCRM.ErrorLogger.Println(err.Error())
+			return err
+		}
+
+	case "gORM":
+
+		err := gorm.DeleteOneRow(id, Global_settingsV)
+
+		if err != nil {
 			return err
 		}
 
 	default:
-		_, ok := EngineCRMv.DemoDBmap[id]
+		_, ok := EngineCRM.DemoDBmap[id]
 		if ok {
-			delete(EngineCRMv.DemoDBmap, id)
+			delete(EngineCRM.DemoDBmap, id)
 		}
 	}
 
@@ -509,14 +553,14 @@ func (EngineCRM *EngineCRM) DeleteOneRow(DataBaseType string, id string) error {
 
 }
 
-func (EngineCRM *EngineCRM) SendInQueue(Customer_struct Customer_struct) error {
+func (EngineCRM *EngineCRM) SendInQueue(Customer_struct RootSctuct.Customer_struct) error {
 
-	if EngineCRMv.RabbitMQ_channel == nil {
+	if EngineCRM.RabbitMQ_channel == nil {
 		err := errors.New("Connection to RabbitMQ not established")
 		return err
 	}
 
-	q, err := EngineCRMv.RabbitMQ_channel.QueueDeclare(
+	q, err := EngineCRM.RabbitMQ_channel.QueueDeclare(
 		"Customer___add_change", // name
 		false,                   // durable
 		false,                   // delete when unused
@@ -533,7 +577,7 @@ func (EngineCRM *EngineCRM) SendInQueue(Customer_struct Customer_struct) error {
 		return err
 	}
 
-	err = EngineCRMv.RabbitMQ_channel.Publish(
+	err = EngineCRM.RabbitMQ_channel.Publish(
 		"",     // exchange
 		q.Name, // routing key
 		false,  // mandatory
@@ -558,19 +602,19 @@ func (EngineCRM *EngineCRM) InitRabbitMQ() error {
 
 	conn, err := amqp.Dial(Global_settingsV.AddressRabbitMQ) //5672
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println("Failed to connect to RabbitMQ")
+		EngineCRM.LoggerCRM.ErrorLogger.Println("Failed to connect to RabbitMQ")
 		return err
 	}
 	//defer conn.Close()
 
 	ch, err := conn.Channel()
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println("Failed to open a channel")
+		EngineCRM.LoggerCRM.ErrorLogger.Println("Failed to open a channel")
 		return err
 	}
 	//defer ch.Close()
 
-	EngineCRMv.RabbitMQ_channel = ch
+	EngineCRM.RabbitMQ_channel = ch
 
 	return nil
 
@@ -578,73 +622,7 @@ func (EngineCRM *EngineCRM) InitRabbitMQ() error {
 
 var EngineCRMv EngineCRM
 
-type Customer_struct struct {
-	Customer_id    string
-	Customer_name  string
-	Customer_type  string
-	Customer_email string
-	Address_Struct Address_Struct
-}
-
-type Global_settings struct {
-	DataBaseType    string
-	Mail_smtpServer string
-	AddressMongoBD  string
-	AddressRedis    string
-	AddressRabbitMQ string
-	Mail_email      string
-	Mail_password   string
-	UseRabbitMQ     bool
-	UsePrometheus   bool
-	Dada_apiKey     string
-	Dada_secretKey  string
-}
-
-func (GlobalSettings *Global_settings) SaveSettingsOnDisk() {
-
-	f, err := os.Create("./settings/config.json")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	JsonString, err := json.Marshal(GlobalSettings)
-	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
-		log.Fatal(err)
-	}
-
-	if _, err := f.Write(JsonString); err != nil {
-		f.Close() // ignore error; Write error takes precedence
-		log.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func (GlobalSettings *Global_settings) LoadSettingsFromDisk() {
-
-	file, err := os.OpenFile("./settings/config.json", os.O_RDWR|os.O_CREATE, 0755)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	decoder := json.NewDecoder(file)
-	Settings := Global_settings{}
-	err = decoder.Decode(&Settings)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	//Global_settingsV = Settings
-	*GlobalSettings = Settings
-
-	if err := file.Close(); err != nil {
-		fmt.Println(err)
-	}
-}
-
-var Global_settingsV Global_settings
+var Global_settingsV RootSctuct.Global_settings
 
 type LoggerCRM struct {
 	InfoLogger  *log.Logger
@@ -662,11 +640,6 @@ func (LoggerCRM *LoggerCRM) InitLog() {
 	LoggerCRM.ErrorLogger = log.New(file, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 
 	LoggerCRM.ErrorLogger.Println("Starting the application...")
-}
-
-type Address_Struct struct {
-	Street string
-	House  int
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -690,7 +663,7 @@ schema {
 `
 
 type FindOneRow_Resolver struct {
-	v *Customer_struct
+	v *RootSctuct.Customer_struct
 }
 
 func (r *FindOneRow_Resolver) Customer_id() string    { return r.v.Customer_id }
@@ -725,13 +698,13 @@ type Customer_struct_bson struct {
 }
 
 type Users_CRM struct {
-	user     string
-	password string
+	User     string
+	Password string
 }
 
 type Cookie_CRM struct {
-	id   string
-	user string
+	Id   string
+	User string
 }
 
 var Cookie_CRMv Cookie_CRM
@@ -775,7 +748,7 @@ func (PrometheusEngine *PrometheusEngine) initPrometheus() {
 	prometheus.MustRegister(PrometheusEngine.CRM_Counter_Gauge)
 }
 
-var customer_map = make(map[string]Customer_struct)
+var customer_map = make(map[string]RootSctuct.Customer_struct)
 
 var cookiemap = make(map[string]string)
 var users = make(map[string]string)
@@ -789,7 +762,7 @@ type ViewData struct {
 	Message      string
 	User         string
 	DataBaseType string
-	Customers    map[string]Customer_struct
+	Customers    map[string]RootSctuct.Customer_struct
 }
 
 var LoggerCRMv LoggerCRM
@@ -819,7 +792,7 @@ func (s *server) GET_List(ctx context.Context, in *pb.RequestGET) (*pb.ResponseG
 
 func (s *server) POST_List(ctx context.Context, in *pb.RequestPOST) (*pb.ResponsePOST, error) {
 
-	Customer_struct_out := Customer_struct{
+	Customer_struct_out := RootSctuct.Customer_struct{
 		Customer_id:    in.CustomerId,
 		Customer_name:  in.CustomerName,
 		Customer_type:  in.CustomerType,
@@ -873,7 +846,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	if CookieGet != nil {
 		nameUserFromCookie, flagmap := EngineCRMv.Cookie_CRM_map[CookieGet.Value]
 		if flagmap != false {
-			nameUserFromCookieStruc = nameUserFromCookie.user
+			nameUserFromCookieStruc = nameUserFromCookie.User
 		}
 	}
 
@@ -889,7 +862,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			p := Cookie_CRM{}
-			err := rows.Scan(&p.id, &p.user)
+			err := rows.Scan(&p.Id, &p.User)
 			if err != nil {
 				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 				fmt.Println(err)
@@ -898,8 +871,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 			cookie_base_s = append(cookie_base_s, p)
 		}
 		for _, p := range cookie_base_s {
-			nameUserFromCookieStruc = p.user
-			fmt.Println(p.id, p.user)
+			nameUserFromCookieStruc = p.User
+			fmt.Println(p.Id, p.User)
 		}
 
 	}
@@ -937,11 +910,11 @@ func get_customer(w http.ResponseWriter, r *http.Request) {
 		}
 		defer cur.Close(context.Background())
 
-		Customer_struct_slice := []Customer_struct{}
+		Customer_struct_slice := []RootSctuct.Customer_struct{}
 
 		for cur.Next(context.Background()) {
 
-			Customer_struct_out := Customer_struct{}
+			Customer_struct_out := RootSctuct.Customer_struct{}
 
 			err := cur.Decode(&Customer_struct_out)
 			if err != nil {
@@ -1059,9 +1032,9 @@ func get_customer(w http.ResponseWriter, r *http.Request) {
 		// and all kinds of other information from Elasticsearch.
 		fmt.Printf("Query took %d milliseconds\n", searchResult.TookInMillis)
 
-		var ttyp Customer_struct
+		var ttyp RootSctuct.Customer_struct
 		for _, item := range searchResult.Each(reflect.TypeOf(ttyp)) {
-			t := item.(Customer_struct)
+			t := item.(RootSctuct.Customer_struct)
 			fmt.Fprintf(w, "customer_id: %s customer_name: %s", t.Customer_id, t.Customer_name)
 		}
 
@@ -1112,7 +1085,7 @@ func encodeRFC2047(String string) string {
 
 func postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
 
-	customer_data := Customer_struct{
+	customer_data := RootSctuct.Customer_struct{
 		Customer_name:  r.FormValue("customer_name"),
 		Customer_id:    r.FormValue("customer_id"),
 		Customer_type:  r.FormValue("customer_type"),
@@ -1190,7 +1163,7 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 
 	if EngineCRMv.DataBaseType == "SQLit" {
 
-		rows, err := EngineCRMv.databaseSQLite.Query("select * from users where user = $1 and password = $2", username, password)
+		rows, err := EngineCRMv.DatabaseSQLite.Query("select * from users where user = $1 and password = $2", username, password)
 		if err != nil {
 			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			panic(err)
@@ -1200,7 +1173,7 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			p := Users_CRM{}
-			err := rows.Scan(&p.user, &p.password)
+			err := rows.Scan(&p.User, &p.Password)
 			if err != nil {
 				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 				fmt.Println(err)
@@ -1209,14 +1182,14 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 			users_base_s = append(users_base_s, p)
 		}
 		for _, p := range users_base_s {
-			fmt.Println(p.user, p.password)
+			fmt.Println(p.User, p.Password)
 		}
 
 	} else {
 
 		user_password_struct, flagusers := EngineCRMv.Users_CRM_map[username]
 		if flagusers == true {
-			if user_password_struct.password != password {
+			if user_password_struct.Password != password {
 				fmt.Fprint(w, "error auth password")
 				return
 			}
@@ -1230,7 +1203,7 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 
 	if EngineCRMv.DataBaseType == "SQLit" {
 
-		result, err := EngineCRMv.databaseSQLite.Exec("insert into cookie (id, user) values ($1, $2)",
+		result, err := EngineCRMv.DatabaseSQLite.Exec("insert into cookie (id, user) values ($1, $2)",
 			idcookie, username)
 		if err != nil {
 			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
@@ -1241,8 +1214,8 @@ func loginPost(w http.ResponseWriter, r *http.Request) {
 
 	} else {
 		cookie_CRM_data := Cookie_CRM{
-			id:   idcookie,
-			user: username,
+			Id:   idcookie,
+			User: username,
 		}
 		EngineCRMv.Cookie_CRM_map[idcookie] = cookie_CRM_data
 	}
@@ -1290,6 +1263,9 @@ func settings(w http.ResponseWriter, r *http.Request) {
 
 		EngineCRMv.Global_settings.Dada_apiKey = r.FormValue("Dada_apiKey")
 		EngineCRMv.Global_settings.Dada_secretKey = r.FormValue("Dada_secretKey")
+
+		EngineCRMv.Global_settings.GORM_DataType = r.FormValue("GORM_DataType")
+		EngineCRMv.Global_settings.GORM_ConnectString = r.FormValue("GORM_ConnectString")
 
 		if r.FormValue("UseRabbitMQ") == "on" {
 			EngineCRMv.Global_settings.UseRabbitMQ = true
@@ -1400,7 +1376,7 @@ func EditHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, err.Error())
 	}
 
-	Customer_struct_out := Customer_struct{
+	Customer_struct_out := RootSctuct.Customer_struct{
 		Customer_id:    r.FormValue("customer_id"),
 		Customer_name:  r.FormValue("customer_name"),
 		Customer_type:  r.FormValue("customer_type"),
@@ -1622,7 +1598,7 @@ func Api_json(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, err.Error())
 		}
 
-		var customer_map_json = make(map[string]Customer_struct)
+		var customer_map_json = make(map[string]RootSctuct.Customer_struct)
 
 		err = json.Unmarshal(body, &customer_map_json)
 		if err != nil {
@@ -1722,13 +1698,13 @@ func Api_xml(w http.ResponseWriter, r *http.Request) {
 			panic(err)
 		}
 
-		var customer_map_xml = make(map[string]Customer_struct)
+		var customer_map_xml = make(map[string]RootSctuct.Customer_struct)
 
 		Custromers := doc.SelectElement("Custromers")
 
 		for _, Custromer := range Custromers.SelectElements("Custromer") {
 
-			Customer_struct := Customer_struct{}
+			Customer_struct := RootSctuct.Customer_struct{}
 			//fmt.Println("CHILD element:", Custromer.Tag)
 			if Customer_id := Custromer.SelectElement("Customer_id"); Customer_id != nil {
 				value := Customer_id.SelectAttrValue("value", "unknown")
@@ -1768,60 +1744,7 @@ func Api_xml(w http.ResponseWriter, r *http.Request) {
 }
 
 func Test_handler(w http.ResponseWriter, r *http.Request) {
-
-	// https://github.com/webdeskltd/dadata/blob/v2/examples_test.go
-
-	daData := dadata.NewDaData("1aa37d40a1f8267955a88cb429e6bbdff3c33a31", "b8fb31a67d75d925755b04b754c514d3e2d9fe70")
-
-	//func ExampleDaData_CleanAddresses() {
-
-	addresses, err := daData.CleanAddresses("ул.Правды 26", "пер.Расковой 5")
-
-	if nil != err {
-		fmt.Println(err)
-	}
-
-	for _, address := range addresses {
-		fmt.Println(address.StreetTypeFull)
-		fmt.Println(address.Street)
-		fmt.Println(address.House)
-	}
-
-	// Output:
-	// улица
-	// Правды
-	// 26
-	// переулок
-	// Расковой
-	// 5
-
-	//}
-
-	//func ExampleDaData_SuggestAddresses() {
-
-	daData2 := dadata.NewDaData("1aa37d40a1f8267955a88cb429e6bbdff3c33a31", "b8fb31a67d75d925755b04b754c514d3e2d9fe70")
-
-	addresses2, err := daData2.SuggestAddresses(dadata.SuggestRequestParams{Query: "Преснен", Count: 2})
-	if nil != err {
-		fmt.Println(err)
-	}
-
-	for _, address2 := range addresses2 {
-		fmt.Println(address2.UnrestrictedValue)
-		fmt.Println(address2.Data.Street)
-		fmt.Println(address2.Data.FiasLevel)
-	}
-
-	// Output:
-	// г Москва, Пресненская наб
-	// Пресненская
-	// 7
-	// г Москва, ул Пресненский Вал
-	// Пресненский Вал
-	// 7
-
-	//}
-
+	//gorm.Test_gorm()
 }
 
 func infoTeam(rw http.ResponseWriter, r *http.Request) {
@@ -1897,7 +1820,7 @@ func RabbitMQ_Consumer() {
 
 		for d := range msgs {
 			log.Printf("Received a message: %s", d.Body)
-			EngineCRMv.testChan <- string(d.Body)
+			EngineCRMv.TestChan <- string(d.Body)
 		}
 
 	}
@@ -1908,7 +1831,7 @@ func Test_Chan() {
 		time.Sleep(100 * time.Millisecond)
 		//fmt.Println("1234")
 		//log.Printf("Chan consisit:", <-EngineCRMv.testChan)
-		fmt.Println("Chan consisit:", <-EngineCRMv.testChan)
+		fmt.Println("Chan consisit:", <-EngineCRMv.TestChan)
 	}
 }
 
@@ -1928,7 +1851,7 @@ func main() {
 		fmt.Println(err.Error())
 		return
 	}
-	defer EngineCRMv.databaseSQLite.Close()
+	defer EngineCRMv.DatabaseSQLite.Close()
 
 	go initgRPC()
 

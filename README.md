@@ -12,6 +12,8 @@ Used HTTPS for login page.
 Used by ElasticSearch to find data.
 ### REST API
 Used JSON and XML API to get and write data.
+### ORM
+Used gORM pack
 ### Front-end
 Uses HTML and some JavaScript.
 ### Mail
@@ -35,3 +37,4 @@ Search by customer ID, example below
 ### For Russian ERP system 1C
 Для системы 1С реализована обработка для интеграции, используя JSON API (GET, POST запросы)
 Так же есть реализация проверки контрагента в базе налоговой через HTTP
+Поиск адресов в сервисе https://dadata.ru
