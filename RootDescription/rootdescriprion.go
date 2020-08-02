@@ -1,6 +1,7 @@
 package rootdescription
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -78,4 +79,47 @@ func (GlobalSettings *Global_settings) LoadSettingsFromDisk() {
 	if err := file.Close(); err != nil {
 		fmt.Println(err)
 	}
+}
+
+type LoggerCRM struct {
+	InfoLogger  *log.Logger
+	ErrorLogger *log.Logger
+}
+
+func (LoggerCRM *LoggerCRM) InitLog() {
+
+	file, err := os.OpenFile("./logs/logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	LoggerCRM.InfoLogger = log.New(file, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+	LoggerCRM.ErrorLogger = log.New(file, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
+
+	LoggerCRM.ErrorLogger.Println("Starting the application...")
+}
+
+type Users_CRM struct {
+	User     string
+	Password string
+}
+
+type Cookie_CRM struct {
+	Id   string
+	User string
+}
+
+// convert in cookie_base type
+func (Cookie_CRM *Cookie_CRM) GenerateId() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)
+}
+
+type ViewData struct {
+	Title        string
+	Message      string
+	User         string
+	DataBaseType string
+	Customers    map[string]Customer_struct
 }

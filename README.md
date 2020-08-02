@@ -1,7 +1,6 @@
 ## CRM
 CRM written in Golang. (Implemented in minimum mode. Test regime)
 
-ERP evolution planned in future
 ### Store data
 Used SQLite, MongoDB, Redis to store data.
 ### Metrics and Monitoring
