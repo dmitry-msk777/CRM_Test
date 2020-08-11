@@ -1,4 +1,4 @@
-package Handlers
+package handlers
 
 import (
 	"bytes"
@@ -14,13 +14,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/olivere/elastic"
 	"go.mongodb.org/mongo-driver/bson"
 
-	EngineCRM "github.com/dmitry-msk777/CRM_Test/EngineCRM"
-	Prometheus "github.com/dmitry-msk777/CRM_Test/Prometheus"
-	RootSctuct "github.com/dmitry-msk777/CRM_Test/RootDescription"
-	Utilities "github.com/dmitry-msk777/CRM_Test/Utilities"
+	enginecrm "github.com/dmitry-msk777/CRM_Test/enginecrm"
+	prometheus "github.com/dmitry-msk777/CRM_Test/prometheus"
+	rootsctuct "github.com/dmitry-msk777/CRM_Test/rootdescription"
+	utilities "github.com/dmitry-msk777/CRM_Test/utilities"
 
 	"encoding/json"
 	"io/ioutil"
@@ -29,25 +30,24 @@ import (
 	"gopkg.in/webdeskltd/dadata.v2"
 )
 
-func List_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM,
-	PrometheusEngineV Prometheus.PrometheusEngine) {
+func List_customer(w http.ResponseWriter, r *http.Request) {
 
 	//prometheus
-	if EngineCRMv.Global_settings.UsePrometheus {
-		PrometheusEngineV.CRM_Counter_Gauge.Set(float64(5)) // or: Inc(), Dec(), Add(5), Dec(5),
+	if enginecrm.EngineCRMv.Global_settings.UsePrometheus {
+		prometheus.PrometheusEngineV.CRM_Counter_Gauge.Set(float64(5)) // or: Inc(), Dec(), Add(5), Dec(5),
 	}
 
 	tmpl, err := template.ParseFiles("templates/list_customer.html", "templates/header.html")
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 		return
 	}
 
-	customer_map_data, err := EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType)
+	customer_map_data, err := enginecrm.EngineCRMv.GetAllCustomer(enginecrm.EngineCRMv.DataBaseType)
 
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 		return
 	}
@@ -56,11 +56,11 @@ func List_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.
 
 }
 
-func Services(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM) {
+func Services(w http.ResponseWriter, r *http.Request) {
 
 	tmpl, err := template.ParseFiles("templates/services.html", "templates/header.html")
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 		return
 	}
@@ -69,81 +69,81 @@ func Services(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engin
 
 }
 
-func Settings(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM) {
+func Settings(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == "GET" {
 
 		tmpl, err := template.ParseFiles("templates/settings.html", "templates/header.html")
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 			return
 		}
 
-		tmpl.ExecuteTemplate(w, "settings", EngineCRMv.Global_settings)
+		tmpl.ExecuteTemplate(w, "settings", enginecrm.EngineCRMv.Global_settings)
 
 	} else {
 
 		//mass_settings[0] = r.FormValue("email")
 		//mass_settings[1] = r.FormValue("password")
 
-		EngineCRMv.Global_settings.Mail_email = r.FormValue("Mail_email")
-		EngineCRMv.Global_settings.Mail_password = r.FormValue("Mail_password")
-		EngineCRMv.Global_settings.Mail_smtpServer = r.FormValue("Mail_smtpServer")
-		EngineCRMv.Global_settings.DataBaseType = r.FormValue("DataBaseType")
+		enginecrm.EngineCRMv.Global_settings.Mail_email = r.FormValue("Mail_email")
+		enginecrm.EngineCRMv.Global_settings.Mail_password = r.FormValue("Mail_password")
+		enginecrm.EngineCRMv.Global_settings.Mail_smtpServer = r.FormValue("Mail_smtpServer")
+		enginecrm.EngineCRMv.Global_settings.DataBaseType = r.FormValue("DataBaseType")
 
-		EngineCRMv.Global_settings.AddressMongoBD = r.FormValue("AddressMongoBD")
-		EngineCRMv.Global_settings.AddressRedis = r.FormValue("AddressRedis")
-		EngineCRMv.Global_settings.AddressRabbitMQ = r.FormValue("AddressRabbitMQ")
+		enginecrm.EngineCRMv.Global_settings.AddressMongoBD = r.FormValue("AddressMongoBD")
+		enginecrm.EngineCRMv.Global_settings.AddressRedis = r.FormValue("AddressRedis")
+		enginecrm.EngineCRMv.Global_settings.AddressRabbitMQ = r.FormValue("AddressRabbitMQ")
 
-		EngineCRMv.Global_settings.Dada_apiKey = r.FormValue("Dada_apiKey")
-		EngineCRMv.Global_settings.Dada_secretKey = r.FormValue("Dada_secretKey")
+		enginecrm.EngineCRMv.Global_settings.Dada_apiKey = r.FormValue("Dada_apiKey")
+		enginecrm.EngineCRMv.Global_settings.Dada_secretKey = r.FormValue("Dada_secretKey")
 
-		EngineCRMv.Global_settings.GORM_DataType = r.FormValue("GORM_DataType")
-		EngineCRMv.Global_settings.GORM_ConnectString = r.FormValue("GORM_ConnectString")
+		enginecrm.EngineCRMv.Global_settings.GORM_DataType = r.FormValue("GORM_DataType")
+		enginecrm.EngineCRMv.Global_settings.GORM_ConnectString = r.FormValue("GORM_ConnectString")
 
 		if r.FormValue("UseRabbitMQ") == "on" {
-			EngineCRMv.Global_settings.UseRabbitMQ = true
+			enginecrm.EngineCRMv.Global_settings.UseRabbitMQ = true
 		} else {
-			EngineCRMv.Global_settings.UseRabbitMQ = false
+			enginecrm.EngineCRMv.Global_settings.UseRabbitMQ = false
 		}
 
 		if r.FormValue("UsePrometheus") == "on" {
-			EngineCRMv.Global_settings.UsePrometheus = true
+			enginecrm.EngineCRMv.Global_settings.UsePrometheus = true
 		} else {
-			EngineCRMv.Global_settings.UsePrometheus = false
+			enginecrm.EngineCRMv.Global_settings.UsePrometheus = false
 		}
 
-		EngineCRMv.SetSettings(EngineCRMv.Global_settings)
+		enginecrm.EngineCRMv.SetSettings(enginecrm.EngineCRMv.Global_settings)
 
-		err := EngineCRMv.InitDataBase()
+		err := enginecrm.EngineCRMv.InitDataBase()
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 			return
 		}
 
-		EngineCRMv.Global_settings.SaveSettingsOnDisk()
+		enginecrm.EngineCRMv.Global_settings.SaveSettingsOnDisk()
 
 		http.Redirect(w, r, "/", 302)
 	}
 }
 
-func EditHandler(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM, Global_settingsV RootSctuct.Global_settings) {
+func EditHandler(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 	}
 
-	Customer_struct_out := RootSctuct.Customer_struct{
+	Customer_struct_out := rootsctuct.Customer_struct{
 		Customer_id:    r.FormValue("customer_id"),
 		Customer_name:  r.FormValue("customer_name"),
 		Customer_type:  r.FormValue("customer_type"),
 		Customer_email: r.FormValue("customer_email"),
 	}
 
-	EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, Customer_struct_out, Global_settingsV)
+	enginecrm.EngineCRMv.AddChangeOneRow(enginecrm.EngineCRMv.DataBaseType, Customer_struct_out, rootsctuct.Global_settingsV)
 
 	//return err
 	//fmt.Fprintf(w, err.Error())
@@ -152,22 +152,22 @@ func EditHandler(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.En
 
 }
 
-func EditPage(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM,
-	Global_settingsV RootSctuct.Global_settings, id string) {
-	// vars := mux.Vars(r)
-	// id := vars["id"]
+func EditPage(w http.ResponseWriter, r *http.Request) {
 
-	Customer_struct_out, err := EngineCRMv.FindOneRow(EngineCRMv.DataBaseType, id, Global_settingsV)
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	Customer_struct_out, err := enginecrm.EngineCRMv.FindOneRow(enginecrm.EngineCRMv.DataBaseType, id, rootsctuct.Global_settingsV)
 
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 		return
 	}
 
 	tmpl, err := template.ParseFiles("templates/edit.html", "templates/header.html")
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 		return
 	}
@@ -176,15 +176,15 @@ func EditPage(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engin
 
 }
 
-func DeleteHandler(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM,
-	Global_settingsV RootSctuct.Global_settings, id string) {
-	// vars := mux.Vars(r)
-	// id := vars["id"]
+func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 
-	err := EngineCRMv.DeleteOneRow(EngineCRMv.DataBaseType, id, Global_settingsV)
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	err := enginecrm.EngineCRMv.DeleteOneRow(enginecrm.EngineCRMv.DataBaseType, id, rootsctuct.Global_settingsV)
 
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 		return
 	}
@@ -193,12 +193,11 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.
 
 }
 
-func Api_json(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM, PrometheusEngineV Prometheus.PrometheusEngine,
-	Global_settingsV RootSctuct.Global_settings) {
+func Api_json(w http.ResponseWriter, r *http.Request) {
 
-	if EngineCRMv.Global_settings.UsePrometheus {
+	if enginecrm.EngineCRMv.Global_settings.UsePrometheus {
 		//1
-		PrometheusEngineV.CRM_Counter_Prometheus_JSON.Inc()
+		prometheus.PrometheusEngineV.CRM_Counter_Prometheus_JSON.Inc()
 	}
 
 	if r.Method == "GET" {
@@ -210,17 +209,17 @@ func Api_json(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engin
 		// 	}
 		// }
 
-		customer_map_s, err := EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType)
+		customer_map_s, err := enginecrm.EngineCRMv.GetAllCustomer(enginecrm.EngineCRMv.DataBaseType)
 
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 			return
 		}
 
 		JsonString, err := json.Marshal(customer_map_s)
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, "error json:"+err.Error())
 		}
 		fmt.Fprintf(w, string(JsonString))
@@ -229,22 +228,22 @@ func Api_json(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engin
 
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 		}
 
-		var customer_map_json = make(map[string]RootSctuct.Customer_struct)
+		var customer_map_json = make(map[string]rootsctuct.Customer_struct)
 
 		err = json.Unmarshal(body, &customer_map_json)
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 		}
 
 		for _, p := range customer_map_json {
-			err := EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, p, Global_settingsV)
+			err := enginecrm.EngineCRMv.AddChangeOneRow(enginecrm.EngineCRMv.DataBaseType, p, rootsctuct.Global_settingsV)
 			if err != nil {
-				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+				enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 				fmt.Println(err.Error())
 			}
 		}
@@ -255,20 +254,19 @@ func Api_json(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engin
 
 }
 
-func Api_xml(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM, PrometheusEngineV Prometheus.PrometheusEngine,
-	Global_settingsV RootSctuct.Global_settings) {
+func Api_xml(w http.ResponseWriter, r *http.Request) {
 
-	if EngineCRMv.Global_settings.UsePrometheus {
+	if enginecrm.EngineCRMv.Global_settings.UsePrometheus {
 		//1
-		PrometheusEngineV.CRM_Counter_Prometheus_XML.Inc()
+		prometheus.PrometheusEngineV.CRM_Counter_Prometheus_XML.Inc()
 	}
 
 	if r.Method == "GET" {
 
-		customer_map_s, err := EngineCRMv.GetAllCustomer(EngineCRMv.DataBaseType)
+		customer_map_s, err := enginecrm.EngineCRMv.GetAllCustomer(enginecrm.EngineCRMv.DataBaseType)
 
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 			return
 		}
@@ -310,7 +308,7 @@ func Api_xml(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engine
 
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 		}
 
@@ -334,13 +332,13 @@ func Api_xml(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engine
 			panic(err)
 		}
 
-		var customer_map_xml = make(map[string]RootSctuct.Customer_struct)
+		var customer_map_xml = make(map[string]rootsctuct.Customer_struct)
 
 		Custromers := doc.SelectElement("Custromers")
 
 		for _, Custromer := range Custromers.SelectElements("Custromer") {
 
-			Customer_struct := RootSctuct.Customer_struct{}
+			Customer_struct := rootsctuct.Customer_struct{}
 			//fmt.Println("CHILD element:", Custromer.Tag)
 			if Customer_id := Custromer.SelectElement("Customer_id"); Customer_id != nil {
 				value := Customer_id.SelectAttrValue("value", "unknown")
@@ -367,9 +365,9 @@ func Api_xml(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engine
 		}
 
 		for _, p := range customer_map_xml {
-			err := EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, p, Global_settingsV)
+			err := enginecrm.EngineCRMv.AddChangeOneRow(enginecrm.EngineCRMv.DataBaseType, p, rootsctuct.Global_settingsV)
 			if err != nil {
-				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+				enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 				fmt.Println(err.Error())
 			}
 		}
@@ -379,8 +377,7 @@ func Api_xml(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engine
 	}
 }
 
-func SuggestAddresses(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM,
-	Global_settingsV RootSctuct.Global_settings) {
+func SuggestAddresses(w http.ResponseWriter, r *http.Request) {
 
 	customer_Address := r.URL.Query().Get("customer_Address")
 
@@ -407,7 +404,7 @@ func SuggestAddresses(w http.ResponseWriter, r *http.Request, EngineCRMv EngineC
 	// // 5
 	// //}
 
-	daData2 := dadata.NewDaData(EngineCRMv.Global_settings.Dada_apiKey, EngineCRMv.Global_settings.Dada_secretKey)
+	daData2 := dadata.NewDaData(enginecrm.EngineCRMv.Global_settings.Dada_apiKey, enginecrm.EngineCRMv.Global_settings.Dada_secretKey)
 
 	addresses2, err := daData2.SuggestAddresses(dadata.SuggestRequestParams{Query: customer_Address, Count: 5})
 	if nil != err {
@@ -433,41 +430,40 @@ func SuggestAddresses(w http.ResponseWriter, r *http.Request, EngineCRMv EngineC
 
 }
 
-func IndexHandler(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM,
-	Global_settingsV RootSctuct.Global_settings, cookieName string, customer_map map[string]RootSctuct.Customer_struct) {
+func IndexHandler(w http.ResponseWriter, r *http.Request) {
 
 	t, err := template.ParseFiles("templates/main_page.html", "templates/header.html")
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 		return
 	}
 
 	nameUserFromCookieStruc := ""
 
-	CookieGet, _ := r.Cookie(cookieName)
+	CookieGet, _ := r.Cookie(rootsctuct.CookieName)
 	if CookieGet != nil {
-		nameUserFromCookie, flagmap := EngineCRMv.Cookie_CRM_map[CookieGet.Value]
+		nameUserFromCookie, flagmap := enginecrm.EngineCRMv.Cookie_CRM_map[CookieGet.Value]
 		if flagmap != false {
 			nameUserFromCookieStruc = nameUserFromCookie.User
 		}
 	}
 
-	if EngineCRMv.DataBaseType == "SQLit" && CookieGet != nil {
+	if enginecrm.EngineCRMv.DataBaseType == "SQLit" && CookieGet != nil {
 
-		rows, err := EngineCRMv.DatabaseSQLite.Query("select * from cookie where id = $1", CookieGet.Value)
+		rows, err := enginecrm.EngineCRMv.DatabaseSQLite.Query("select * from cookie where id = $1", CookieGet.Value)
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			panic(err)
 		}
 		defer rows.Close()
-		cookie_base_s := []RootSctuct.Cookie_CRM{}
+		cookie_base_s := []rootsctuct.Cookie_CRM{}
 
 		for rows.Next() {
-			p := RootSctuct.Cookie_CRM{}
+			p := rootsctuct.Cookie_CRM{}
 			err := rows.Scan(&p.Id, &p.User)
 			if err != nil {
-				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+				enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 				fmt.Println(err)
 				continue
 			}
@@ -480,19 +476,18 @@ func IndexHandler(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 
 	}
 
-	data := RootSctuct.ViewData{
+	data := rootsctuct.ViewData{
 		Title:     "list customer",
 		Message:   "list customer below",
 		User:      nameUserFromCookieStruc,
-		Customers: customer_map,
+		Customers: rootsctuct.Customer_map,
 	}
 
 	// t.ExecuteTemplate(w, "main_page", customer_map)
 	t.ExecuteTemplate(w, "main_page", data)
 }
 
-func CheckINN(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM,
-	Global_settingsV RootSctuct.Global_settings) {
+func CheckINN(w http.ResponseWriter, r *http.Request) {
 
 	customer_INN := r.URL.Query().Get("customer_INN")
 
@@ -524,7 +519,7 @@ func CheckINN(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engin
 
 	req, err := http.NewRequest("POST", urlReq, bytes.NewBuffer([]byte(soapQuery)))
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 	}
 
@@ -536,14 +531,14 @@ func CheckINN(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engin
 
 	resp, err := client.Do(req)
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		fmt.Fprintf(w, err.Error())
 	}
 
@@ -588,31 +583,30 @@ func CheckINN(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engin
 
 }
 
-func Get_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM,
-	Global_settingsV RootSctuct.Global_settings, customer_map map[string]RootSctuct.Customer_struct) {
+func Get_customer(w http.ResponseWriter, r *http.Request) {
 
 	customer_id_for_find := r.URL.Query().Get("customer_id")
 
-	switch EngineCRMv.DataBaseType {
+	switch enginecrm.EngineCRMv.DataBaseType {
 	case "SQLit":
 		fmt.Fprintf(w, "function not implemented for SQLit")
 	case "MongoDB":
 
-		cur, err := EngineCRMv.CollectionMongoDB.Find(context.Background(), bson.D{})
+		cur, err := enginecrm.EngineCRMv.CollectionMongoDB.Find(context.Background(), bson.D{})
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		}
 		defer cur.Close(context.Background())
 
-		Customer_struct_slice := []RootSctuct.Customer_struct{}
+		Customer_struct_slice := []rootsctuct.Customer_struct{}
 
 		for cur.Next(context.Background()) {
 
-			Customer_struct_out := RootSctuct.Customer_struct{}
+			Customer_struct_out := rootsctuct.Customer_struct{}
 
 			err := cur.Decode(&Customer_struct_out)
 			if err != nil {
-				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+				enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			}
 
 			Customer_struct_slice = append(Customer_struct_slice, Customer_struct_out)
@@ -620,7 +614,7 @@ func Get_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 		}
 
 		if err := cur.Err(); err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		}
 
 		//ElasticSerch
@@ -629,14 +623,14 @@ func Get_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 			elastic.SetURL("http://127.0.0.1:32771", "http://127.0.0.1:32770"))
 		// elastic.SetBasicAuth("user", "secret"))
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 			return
 		}
 
 		exists, err := clientElasticSerch.IndexExists("crm_customer").Do(context.Background()) //twitter
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 			return
 		}
@@ -674,7 +668,7 @@ func Get_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 			//createIndex, err := clientElasticSerch.CreateIndex("crm_customer").Body(mapping).IncludeTypeName(true).Do(context.Background())
 			createIndex, err := clientElasticSerch.CreateIndex("crm_customer").Body(mapping).Do(context.Background())
 			if err != nil {
-				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+				enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 				fmt.Fprintf(w, err.Error())
 				return
 			}
@@ -691,7 +685,7 @@ func Get_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 				BodyJson(p).
 				Do(context.Background())
 			if err != nil {
-				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+				enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 				fmt.Fprintf(w, err.Error())
 				return
 			}
@@ -702,7 +696,7 @@ func Get_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 		// Flush to make sure the documents got written.
 		_, err = clientElasticSerch.Flush().Index("crm_customer").Do(context.Background())
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 			return
 		}
@@ -717,7 +711,7 @@ func Get_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 			Pretty(true).              // pretty print request and response JSON
 			Do(context.Background())   // execute
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 			return
 		}
@@ -726,9 +720,9 @@ func Get_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 		// and all kinds of other information from Elasticsearch.
 		fmt.Printf("Query took %d milliseconds\n", searchResult.TookInMillis)
 
-		var ttyp RootSctuct.Customer_struct
+		var ttyp rootsctuct.Customer_struct
 		for _, item := range searchResult.Each(reflect.TypeOf(ttyp)) {
-			t := item.(RootSctuct.Customer_struct)
+			t := item.(rootsctuct.Customer_struct)
 			fmt.Fprintf(w, "customer_id: %s customer_name: %s", t.Customer_id, t.Customer_name)
 		}
 
@@ -737,7 +731,7 @@ func Get_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 		// Delete an index.
 		deleteIndex, err := clientElasticSerch.DeleteIndex("crm_customer").Do(context.Background())
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			fmt.Fprintf(w, err.Error())
 			return
 		}
@@ -752,27 +746,26 @@ func Get_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 		fmt.Fprintf(w, "function not implemented for Redis")
 
 	default:
-		fmt.Fprintf(w, "customer_id: %s customer_name: %s", customer_map[customer_id_for_find].Customer_id,
-			customer_map[customer_id_for_find].Customer_name)
+		fmt.Fprintf(w, "customer_id: %s customer_name: %s", rootsctuct.Customer_map[customer_id_for_find].Customer_id,
+			rootsctuct.Customer_map[customer_id_for_find].Customer_name)
 	}
 
 }
 
-func Send_message(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM,
-	Global_settingsV RootSctuct.Global_settings) {
+func Send_message(w http.ResponseWriter, r *http.Request) {
 
 	// Set up authentication information. https://yandex.ru/support/mail/mail-clients.html
 
 	//smtpServer := "smtp.yandex.ru"
-	smtpServer := EngineCRMv.Global_settings.Mail_smtpServer
+	smtpServer := enginecrm.EngineCRMv.Global_settings.Mail_smtpServer
 	auth := smtp.PlainAuth(
 		"",
-		EngineCRMv.Global_settings.Mail_email,
-		EngineCRMv.Global_settings.Mail_password,
+		enginecrm.EngineCRMv.Global_settings.Mail_email,
+		enginecrm.EngineCRMv.Global_settings.Mail_password,
 		smtpServer,
 	)
 
-	from := mail.Address{"Test", EngineCRMv.Global_settings.Mail_email}
+	from := mail.Address{"Test", enginecrm.EngineCRMv.Global_settings.Mail_email}
 	to := mail.Address{"test2", "dima-irk35@mail.ru"}
 	title := "Title"
 
@@ -781,7 +774,7 @@ func Send_message(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 	header := make(map[string]string)
 	header["From"] = from.String()
 	header["To"] = to.String()
-	header["Subject"] = Utilities.EncodeRFC2047(title)
+	header["Subject"] = utilities.EncodeRFC2047(title)
 	header["MIME-Version"] = "1.0"
 	header["Content-Type"] = "text/plain; charset=\"utf-8\""
 	header["Content-Transfer-Encoding"] = "base64"
@@ -803,7 +796,7 @@ func Send_message(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 		//[]byte("This is the email body."),
 	)
 	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 		fmt.Fprint(w, "error"+err.Error())
 	} else {
 		http.Redirect(w, r, "/", 302)
@@ -811,26 +804,73 @@ func Send_message(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.E
 
 }
 
-func LoginPost(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM,
-	Global_settingsV RootSctuct.Global_settings, Cookie_CRMv RootSctuct.Cookie_CRM, CookieName string) {
+func Add_change_customer(w http.ResponseWriter, r *http.Request) {
+
+	tmpl, err := template.ParseFiles("templates/add_change_customer.html", "templates/header.html")
+	if err != nil {
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	tmpl.ExecuteTemplate(w, "add_change_customer", nil)
+
+}
+
+func Postform_add_change_customer(w http.ResponseWriter, r *http.Request) {
+
+	customer_data := rootsctuct.Customer_struct{
+		Customer_name:  r.FormValue("customer_name"),
+		Customer_id:    r.FormValue("customer_id"),
+		Customer_type:  r.FormValue("customer_type"),
+		Customer_email: r.FormValue("customer_email"),
+	}
+
+	err := enginecrm.EngineCRMv.AddChangeOneRow(enginecrm.EngineCRMv.DataBaseType, customer_data, rootsctuct.Global_settingsV)
+
+	if err != nil {
+		enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	http.Redirect(w, r, "/list_customer", 302)
+}
+
+func RedirectToHTTPS(w http.ResponseWriter, r *http.Request) {
+
+	http.Redirect(w, r, "https://localhost:8182"+r.RequestURI,
+		http.StatusMovedPermanently)
+
+}
+
+func Test_handler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Test")
+}
+
+func Login(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "./login/login.html")
+}
+
+func LoginPost(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 
-	if EngineCRMv.DataBaseType == "SQLit" {
+	if enginecrm.EngineCRMv.DataBaseType == "SQLit" {
 
-		rows, err := EngineCRMv.DatabaseSQLite.Query("select * from users where user = $1 and password = $2", username, password)
+		rows, err := enginecrm.EngineCRMv.DatabaseSQLite.Query("select * from users where user = $1 and password = $2", username, password)
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			panic(err)
 		}
 		defer rows.Close()
-		users_base_s := []RootSctuct.Users_CRM{}
+		users_base_s := []rootsctuct.Users_CRM{}
 
 		for rows.Next() {
-			p := RootSctuct.Users_CRM{}
+			p := rootsctuct.Users_CRM{}
 			err := rows.Scan(&p.User, &p.Password)
 			if err != nil {
-				EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+				enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 				fmt.Println(err)
 				continue
 			}
@@ -842,7 +882,7 @@ func LoginPost(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engi
 
 	} else {
 
-		user_password_struct, flagusers := EngineCRMv.Users_CRM_map[username]
+		user_password_struct, flagusers := enginecrm.EngineCRMv.Users_CRM_map[username]
 		if flagusers == true {
 			if user_password_struct.Password != password {
 				fmt.Fprint(w, "error auth password")
@@ -854,29 +894,29 @@ func LoginPost(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engi
 		}
 	}
 
-	idcookie := Cookie_CRMv.GenerateId()
+	idcookie := rootsctuct.Cookie_CRMv.GenerateId()
 
-	if EngineCRMv.DataBaseType == "SQLit" {
+	if enginecrm.EngineCRMv.DataBaseType == "SQLit" {
 
-		result, err := EngineCRMv.DatabaseSQLite.Exec("insert into cookie (id, user) values ($1, $2)",
+		result, err := enginecrm.EngineCRMv.DatabaseSQLite.Exec("insert into cookie (id, user) values ($1, $2)",
 			idcookie, username)
 		if err != nil {
-			EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
+			enginecrm.EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
 			panic(err)
 		}
 		fmt.Println(result.LastInsertId()) // id последнего добавленного объекта
 		fmt.Println(result.RowsAffected()) // количество добавленных строк
 
 	} else {
-		cookie_CRM_data := RootSctuct.Cookie_CRM{
+		cookie_CRM_data := rootsctuct.Cookie_CRM{
 			Id:   idcookie,
 			User: username,
 		}
-		EngineCRMv.Cookie_CRM_map[idcookie] = cookie_CRM_data
+		enginecrm.EngineCRMv.Cookie_CRM_map[idcookie] = cookie_CRM_data
 	}
 
 	cookieHttp := &http.Cookie{
-		Name:    CookieName,
+		Name:    rootsctuct.CookieName,
 		Value:   idcookie,
 		Expires: time.Now().Add(6 * time.Minute),
 	}
@@ -889,37 +929,65 @@ func LoginPost(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.Engi
 		http.StatusMovedPermanently)
 }
 
-func Add_change_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM,
-	Global_settingsV RootSctuct.Global_settings) {
+func StratHandlers() {
 
-	tmpl, err := template.ParseFiles("templates/add_change_customer.html", "templates/header.html")
-	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
-		fmt.Fprintf(w, err.Error())
-		return
-	}
+	router := mux.NewRouter()
 
-	tmpl.ExecuteTemplate(w, "add_change_customer", nil)
+	router.HandleFunc("/", IndexHandler)
+
+	//localhost:8181/get_customer?customer_id="123"
+	router.HandleFunc("/get_customer", Get_customer)
+
+	//http://localhost:8181/checkINN?customer_INN=7702807750
+	router.HandleFunc("/checkINN", CheckINN)
+
+	//http://localhost:8181/SuggestAddresses?customer_Address=Рязанский
+	router.HandleFunc("/SuggestAddresses", SuggestAddresses)
+
+	router.HandleFunc("/add_change_customer", Add_change_customer)
+	router.HandleFunc("/postform_add_change_customer", Postform_add_change_customer)
+
+	router.HandleFunc("/list_customer", List_customer)
+
+	router.HandleFunc("/test", Test_handler)
+
+	// replace to HTTPS router
+	router.HandleFunc("/login", RedirectToHTTPS)
+	router.HandleFunc("/loginPost", RedirectToHTTPS)
+
+	router.HandleFunc("/settings", Settings)
+	router.HandleFunc("/services", Services)
+
+	router.HandleFunc("/send_message", Send_message)
+
+	//localhost:8181/edit/2
+	router.HandleFunc("/edit/{id:[0-9]+}", EditPage).Methods("GET")
+	router.HandleFunc("/edit/{id:[0-9]+}", EditHandler).Methods("POST")
+	router.HandleFunc("/delete/{id:[0-9]+}", DeleteHandler)
+
+	router.HandleFunc("/api_json", Api_json)
+	router.HandleFunc("/api_xml", Api_xml)
+
+	// var dir string
+	// flag.StringVar(&dir, "dir", ".", "the directory to serve files from. Defaults to the current dir")
+	// flag.Parse()
+
+	//router.Handle("/js/", http.FileServer(http.Dir("./js/")))
+	//Работает
+	router.PathPrefix("/js").Handler(http.StripPrefix("/js", http.FileServer(http.Dir("./js/"))))
+
+	http.Handle("/", router)
+	http.ListenAndServe(":8181", nil)
+	fmt.Println("Server is listening...")
 
 }
 
-func Postform_add_change_customer(w http.ResponseWriter, r *http.Request, EngineCRMv EngineCRM.EngineCRM,
-	Global_settingsV RootSctuct.Global_settings) {
+func InitHTTPSlogin() {
+	router_HTTPS := mux.NewRouter()
+	router_HTTPS.HandleFunc("/login", Login)
+	router_HTTPS.HandleFunc("/loginPost", LoginPost)
 
-	customer_data := RootSctuct.Customer_struct{
-		Customer_name:  r.FormValue("customer_name"),
-		Customer_id:    r.FormValue("customer_id"),
-		Customer_type:  r.FormValue("customer_type"),
-		Customer_email: r.FormValue("customer_email"),
-	}
-
-	err := EngineCRMv.AddChangeOneRow(EngineCRMv.DataBaseType, customer_data, Global_settingsV)
-
-	if err != nil {
-		EngineCRMv.LoggerCRM.ErrorLogger.Println(err.Error())
-		fmt.Fprintf(w, err.Error())
-		return
-	}
-
-	http.Redirect(w, r, "/list_customer", 302)
+	httpsMux := http.NewServeMux()
+	httpsMux.Handle("/", router_HTTPS)
+	go http.ListenAndServeTLS(":8182", "./Cert/cert.pem", "./Cert/key.pem", httpsMux)
 }

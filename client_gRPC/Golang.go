@@ -5,7 +5,8 @@ import (
 	"log"
 	"time"
 
-	pb "../proto"
+	//pb "../proto"
+	pb "github.com/dmitry-msk777/CRM_Test/proto"
 	"google.golang.org/grpc"
 )
 
@@ -24,7 +25,7 @@ func main() {
 
 	//Retrive
 	RequestGET := &pb.RequestGET{
-		CustomerId: "666",
+		CustomerId: "2323111",
 	}
 
 	rply, err := c.GET_List(ctx, RequestGET)

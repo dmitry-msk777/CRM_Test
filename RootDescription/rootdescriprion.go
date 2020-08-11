@@ -8,6 +8,22 @@ import (
 	"os"
 )
 
+var Global_settingsV Global_settings
+
+var Cookie_CRMv Cookie_CRM
+
+var Customer_map = make(map[string]Customer_struct)
+
+var Cookiemap = make(map[string]string)
+
+//var Users = make(map[string]string)
+
+var Mass_settings = make([]string, 2)
+
+const CookieName = "CookieCRM"
+
+var LoggerCRMv LoggerCRM
+
 type Customer_struct struct {
 	Customer_id    string
 	Customer_name  string

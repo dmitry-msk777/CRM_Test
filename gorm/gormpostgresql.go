@@ -1,7 +1,7 @@
 package gormpostgresql
 
 import (
-	RootSctuct "github.com/dmitry-msk777/CRM_Test/RootDescription"
+	rootsctuct "github.com/dmitry-msk777/CRM_Test/rootdescription"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
@@ -23,7 +23,7 @@ type Product struct {
 var connected bool
 var db *gorm.DB
 
-func CreateConnect(Global_settings RootSctuct.Global_settings) error {
+func CreateConnect(Global_settings rootsctuct.Global_settings) error {
 	dbConn, err := gorm.Open(Global_settings.GORM_DataType, Global_settings.GORM_ConnectString)
 	if err != nil {
 		return err
@@ -34,7 +34,7 @@ func CreateConnect(Global_settings RootSctuct.Global_settings) error {
 	return nil
 }
 
-func GetAllCustomer(Global_settings RootSctuct.Global_settings) ([]RootSctuct.Customer_struct, error) {
+func GetAllCustomer(Global_settings rootsctuct.Global_settings) ([]rootsctuct.Customer_struct, error) {
 
 	var Customer_struct_slice []Customer_struct
 
@@ -47,11 +47,11 @@ func GetAllCustomer(Global_settings RootSctuct.Global_settings) ([]RootSctuct.Cu
 
 	db.Find(&Customer_struct_slice)
 
-	Customer_struct_slice_return := []RootSctuct.Customer_struct{}
+	Customer_struct_slice_return := []rootsctuct.Customer_struct{}
 
 	for _, customer_gorm := range Customer_struct_slice {
 
-		p := RootSctuct.Customer_struct{Customer_id: customer_gorm.Customer_id,
+		p := rootsctuct.Customer_struct{Customer_id: customer_gorm.Customer_id,
 			Customer_name:  customer_gorm.Customer_name,
 			Customer_type:  customer_gorm.Customer_type,
 			Customer_email: customer_gorm.Customer_email}
@@ -63,7 +63,7 @@ func GetAllCustomer(Global_settings RootSctuct.Global_settings) ([]RootSctuct.Cu
 
 }
 
-func AddChangeOneRow(Customer_struct_ext RootSctuct.Customer_struct, Global_settings RootSctuct.Global_settings) error {
+func AddChangeOneRow(Customer_struct_ext rootsctuct.Customer_struct, Global_settings rootsctuct.Global_settings) error {
 
 	if connected == false {
 		err := CreateConnect(Global_settings)
@@ -99,7 +99,7 @@ func AddChangeOneRow(Customer_struct_ext RootSctuct.Customer_struct, Global_sett
 
 }
 
-func DeleteOneRow(id string, Global_settings RootSctuct.Global_settings) error {
+func DeleteOneRow(id string, Global_settings rootsctuct.Global_settings) error {
 
 	if connected == false {
 		err := CreateConnect(Global_settings)
@@ -114,7 +114,7 @@ func DeleteOneRow(id string, Global_settings RootSctuct.Global_settings) error {
 
 }
 
-func FindOneRow(id string, Global_settings RootSctuct.Global_settings) (RootSctuct.Customer_struct, error) {
+func FindOneRow(id string, Global_settings rootsctuct.Global_settings) (rootsctuct.Customer_struct, error) {
 
 	if connected == false {
 		_ = CreateConnect(Global_settings)
@@ -123,7 +123,7 @@ func FindOneRow(id string, Global_settings RootSctuct.Global_settings) (RootSctu
 	var Customer_struct Customer_struct
 	db.First(&Customer_struct, "Customer_id = ?", id)
 
-	Customer_struct_return := RootSctuct.Customer_struct{}
+	Customer_struct_return := rootsctuct.Customer_struct{}
 	Customer_struct_return.Customer_id = Customer_struct.Customer_id
 	Customer_struct_return.Customer_name = Customer_struct.Customer_name
 	Customer_struct_return.Customer_type = Customer_struct.Customer_type

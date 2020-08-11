@@ -1,9 +1,13 @@
-package Prometheus
+package prometheus
 
 import (
+	"net/http"
+
 	"github.com/prometheus/client_golang/prometheus"
-	// "github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+var PrometheusEngineV PrometheusEngine
 
 type PrometheusEngine struct {
 	CRM_Counter_Prometheus_JSON prometheus.Counter
@@ -29,4 +33,12 @@ func (PrometheusEngine *PrometheusEngine) InitPrometheus() {
 			Name: "CRM_Gauge",
 		})
 	prometheus.MustRegister(PrometheusEngine.CRM_Counter_Gauge)
+}
+
+func StartPrometheus() {
+
+	PrometheusEngineV.InitPrometheus()
+	httpPrometheus := http.NewServeMux()
+	httpPrometheus.Handle("/metrics", promhttp.Handler())
+	go http.ListenAndServe(":8183", httpPrometheus)
 }

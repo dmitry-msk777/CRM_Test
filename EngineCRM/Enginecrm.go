@@ -18,7 +18,7 @@ import (
 	//DBLocal "./bd" //add extermal go module.
 	DBLocal "github.com/dmitry-msk777/CRM_Test/bd"
 
-	RootSctuct "github.com/dmitry-msk777/CRM_Test/RootDescription"
+	rootsctuct "github.com/dmitry-msk777/CRM_Test/rootdescription"
 
 	_ "github.com/mattn/go-sqlite3"
 	"go.mongodb.org/mongo-driver/bson"
@@ -27,21 +27,23 @@ import (
 	gorm "github.com/dmitry-msk777/CRM_Test/gorm"
 )
 
+var EngineCRMv EngineCRM
+
 type EngineCRM struct {
 	DataBaseType      string
 	CollectionMongoDB *mongo.Collection
-	DemoDBmap         map[string]RootSctuct.Customer_struct
+	DemoDBmap         map[string]rootsctuct.Customer_struct
 	DatabaseSQLite    *sql.DB
 	RedisClient       *redis.Client
 	RabbitMQ_channel  *amqp.Channel
-	Global_settings   RootSctuct.Global_settings
-	Users_CRM_map     map[string]RootSctuct.Users_CRM
-	Cookie_CRM_map    map[string]RootSctuct.Cookie_CRM
+	Global_settings   rootsctuct.Global_settings
+	Users_CRM_map     map[string]rootsctuct.Users_CRM
+	Cookie_CRM_map    map[string]rootsctuct.Cookie_CRM
 	TestChan          chan string
-	LoggerCRM         RootSctuct.LoggerCRM
+	LoggerCRM         rootsctuct.LoggerCRM
 }
 
-func (EngineCRM *EngineCRM) SetSettings(Global_settings RootSctuct.Global_settings) {
+func (EngineCRM *EngineCRM) SetSettings(Global_settings rootsctuct.Global_settings) {
 
 	EngineCRM.DataBaseType = Global_settings.DataBaseType
 	if Global_settings.DataBaseType == "" {
@@ -134,35 +136,35 @@ func (EngineCRM *EngineCRM) InitDataBase() error {
 
 	default:
 
-		var ArrayCustomer []RootSctuct.Customer_struct
+		var ArrayCustomer []rootsctuct.Customer_struct
 
-		ArrayCustomer = append(ArrayCustomer, RootSctuct.Customer_struct{
+		ArrayCustomer = append(ArrayCustomer, rootsctuct.Customer_struct{
 			Customer_id:    "777",
 			Customer_name:  "Dmitry",
 			Customer_type:  "Cust",
 			Customer_email: "fff@mail.ru",
 		})
 
-		ArrayCustomer = append(ArrayCustomer, RootSctuct.Customer_struct{
+		ArrayCustomer = append(ArrayCustomer, rootsctuct.Customer_struct{
 			Customer_id:    "666",
 			Customer_name:  "Alex",
 			Customer_type:  "Cust_Fiz",
 			Customer_email: "44fish@mail.ru",
 		})
 
-		var mapForEngineCRM = make(map[string]RootSctuct.Customer_struct)
+		var mapForEngineCRM = make(map[string]rootsctuct.Customer_struct)
 		EngineCRM.DemoDBmap = mapForEngineCRM
 
-		var users_CRM_def = make(map[string]RootSctuct.Users_CRM)
+		var users_CRM_def = make(map[string]rootsctuct.Users_CRM)
 		EngineCRM.Users_CRM_map = users_CRM_def
 
-		users_CRM_data := RootSctuct.Users_CRM{
+		users_CRM_data := rootsctuct.Users_CRM{
 			User:     "admin",
 			Password: "1234"}
 
 		EngineCRM.Users_CRM_map["admin"] = users_CRM_data
 
-		var cookie_CRM_def = make(map[string]RootSctuct.Cookie_CRM)
+		var cookie_CRM_def = make(map[string]rootsctuct.Cookie_CRM)
 		EngineCRM.Cookie_CRM_map = cookie_CRM_def
 
 		for _, p := range ArrayCustomer {
@@ -176,9 +178,9 @@ func (EngineCRM *EngineCRM) InitDataBase() error {
 	return nil
 }
 
-func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) (map[string]RootSctuct.Customer_struct, error) {
+func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) (map[string]rootsctuct.Customer_struct, error) {
 
-	var customer_map_s = make(map[string]RootSctuct.Customer_struct)
+	var customer_map_s = make(map[string]rootsctuct.Customer_struct)
 
 	switch DataBaseType {
 	case "SQLit":
@@ -188,10 +190,10 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) (map[string]Root
 			return customer_map_s, err
 		}
 		defer rows.Close()
-		Customer_struct_s := []RootSctuct.Customer_struct{}
+		Customer_struct_s := []rootsctuct.Customer_struct{}
 
 		for rows.Next() {
-			p := RootSctuct.Customer_struct{}
+			p := rootsctuct.Customer_struct{}
 			err := rows.Scan(&p.Customer_id, &p.Customer_name, &p.Customer_type, &p.Customer_email)
 			if err != nil {
 				EngineCRM.LoggerCRM.ErrorLogger.Println(err.Error())
@@ -214,11 +216,11 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) (map[string]Root
 		}
 		defer cur.Close(context.Background())
 
-		Customer_struct_slice := []RootSctuct.Customer_struct{}
+		Customer_struct_slice := []rootsctuct.Customer_struct{}
 
 		for cur.Next(context.Background()) {
 
-			Customer_struct_out := RootSctuct.Customer_struct{}
+			Customer_struct_out := rootsctuct.Customer_struct{}
 
 			err := cur.Decode(&Customer_struct_out)
 			if err != nil {
@@ -257,9 +259,9 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) (map[string]Root
 
 		//fmt.Println(cursor1, keys1)
 
-		Customer_struct_slice := []RootSctuct.Customer_struct{}
+		Customer_struct_slice := []rootsctuct.Customer_struct{}
 		for _, value := range cursor1 {
-			p := RootSctuct.Customer_struct{}
+			p := rootsctuct.Customer_struct{}
 			//IDString := strconv.FormatInt(int64(i), 10)
 			val2, err := EngineCRM.RedisClient.Get(value).Result()
 			if err == redis.Nil {
@@ -307,9 +309,9 @@ func (EngineCRM *EngineCRM) GetAllCustomer(DataBaseType string) (map[string]Root
 
 }
 
-func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string, Global_settings RootSctuct.Global_settings) (RootSctuct.Customer_struct, error) {
+func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string, Global_settings rootsctuct.Global_settings) (rootsctuct.Customer_struct, error) {
 
-	Customer_struct_out := RootSctuct.Customer_struct{}
+	Customer_struct_out := rootsctuct.Customer_struct{}
 
 	switch DataBaseType {
 	case "SQLit":
@@ -368,7 +370,7 @@ func (EngineCRM *EngineCRM) FindOneRow(DataBaseType string, id string, Global_se
 	return Customer_struct_out, nil
 }
 
-func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct RootSctuct.Customer_struct, Global_settings RootSctuct.Global_settings) error {
+func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct rootsctuct.Customer_struct, Global_settings rootsctuct.Global_settings) error {
 
 	switch DataBaseType {
 	case "SQLit":
@@ -461,7 +463,7 @@ func (EngineCRM *EngineCRM) AddChangeOneRow(DataBaseType string, Customer_struct
 	return nil
 }
 
-func (EngineCRM *EngineCRM) DeleteOneRow(DataBaseType string, id string, Global_settings RootSctuct.Global_settings) error {
+func (EngineCRM *EngineCRM) DeleteOneRow(DataBaseType string, id string, Global_settings rootsctuct.Global_settings) error {
 
 	switch DataBaseType {
 	case "SQLit":
@@ -513,7 +515,7 @@ func (EngineCRM *EngineCRM) DeleteOneRow(DataBaseType string, id string, Global_
 
 }
 
-func (EngineCRM *EngineCRM) SendInQueue(Customer_struct RootSctuct.Customer_struct) error {
+func (EngineCRM *EngineCRM) SendInQueue(Customer_struct rootsctuct.Customer_struct) error {
 
 	if EngineCRM.RabbitMQ_channel == nil {
 		err := errors.New("Connection to RabbitMQ not established")
@@ -555,7 +557,7 @@ func (EngineCRM *EngineCRM) SendInQueue(Customer_struct RootSctuct.Customer_stru
 
 }
 
-func (EngineCRM *EngineCRM) InitRabbitMQ(Global_settings RootSctuct.Global_settings) error {
+func (EngineCRM *EngineCRM) InitRabbitMQ(Global_settings rootsctuct.Global_settings) error {
 
 	// Experimenting with RabbitMQ on your workstation? Try the community Docker image:
 	// docker run -it --rm --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
