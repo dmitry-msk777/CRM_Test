@@ -175,6 +175,11 @@ func (EngineCRM *EngineCRM) InitDataBase() error {
 
 	}
 
+	if EngineCRM.Global_settings.UseRabbitMQ && EngineCRM.RabbitMQ_channel == nil {
+		EngineCRM.InitRabbitMQ(rootsctuct.Global_settingsV)
+		//go RabbitMQ_Consumer()
+	}
+
 	return nil
 }
 
@@ -512,6 +517,116 @@ func (EngineCRM *EngineCRM) DeleteOneRow(DataBaseType string, id string, Global_
 	}
 
 	return nil
+
+}
+
+func (EngineCRM *EngineCRM) ConsumeFromQueue() (map[string]rootsctuct.Customer_struct, error) {
+
+	if EngineCRM.RabbitMQ_channel == nil {
+		err := errors.New("Connection to RabbitMQ not established")
+		return nil, err
+	}
+
+	var customer_map_json = make(map[string]rootsctuct.Customer_struct)
+
+	q, err := EngineCRM.RabbitMQ_channel.QueueDeclare(
+		"Customer___add_change", // name
+		false,                   // durable
+		false,                   // delete when unused
+		false,                   // exclusive
+		false,                   // no-wait
+		nil,                     // arguments
+	)
+
+	if err != nil {
+		fmt.Println("Failed to declare a queue: ", err)
+		return nil, err
+	}
+
+	// msgs, err := EngineCRM.RabbitMQ_channel.Consume(
+	// 	q.Name, // queue
+	// 	"",     // consumer
+	// 	true,   // auto-ack
+	// 	false,  // exclusive
+	// 	false,  // no-local
+	// 	false,  // no-wait
+	// 	nil,    // args
+	// )
+
+	msgs, err := EngineCRM.RabbitMQ_channel.Consume(
+		q.Name, // queue
+		"",     // consumer
+		true,   // auto-ack
+		false,  // exclusive
+		false,  // no-local
+		false,  // no-wait
+		nil,    // args
+	)
+
+	if err != nil {
+		fmt.Println("Failed to register a consumer: ", err)
+		return nil, err
+	}
+	//////////////////////////////////////////////////////////////////////////
+	//forever := make(chan bool)
+
+	// go func() {
+
+	// 	for d := range msgs {
+
+	// 		Customer_struct := rootsctuct.Customer_struct{}
+
+	// 		err = json.Unmarshal(d.Body, &Customer_struct)
+	// 		if err != nil {
+	// 			EngineCRM.LoggerCRM.ErrorLogger.Println(err.Error())
+	// 		}
+	// 		customer_map_json[Customer_struct.Customer_id] = Customer_struct
+	// 		fmt.Println("Customer_struct.Customer_id = ", Customer_struct.Customer_id)
+	// 	}
+
+	// }()
+
+	//signals := make(chan bool)
+	///////////////////////////////////////////////////////////
+	go func() {
+		for {
+			select {
+			case msg := <-msgs:
+				fmt.Println("msg = ", msg)
+				Customer_struct := rootsctuct.Customer_struct{}
+
+				err = json.Unmarshal(msg.Body, &Customer_struct)
+				if err != nil {
+					EngineCRM.LoggerCRM.ErrorLogger.Println(err.Error())
+				}
+
+				customer_map_json[Customer_struct.Customer_id] = Customer_struct
+
+				//msg.Ack(false)
+
+				// if Customer_struct.Customer_id != "" {
+				// 	customer_map_json[Customer_struct.Customer_id] = Customer_struct
+				// }
+
+				//fmt.Println("Customer_struct.Customer_id = ", Customer_struct.Customer_id)
+
+			// case <-signals:
+			// 	return
+			default:
+				//fmt.Println("<-- loop broke!")
+				return // exit break loop
+			}
+		}
+	}()
+
+	/////////////////////////////////////////////////////////////////////
+
+	time.Sleep(30000 * time.Millisecond)
+	EngineCRM.RabbitMQ_channel.Close()
+	EngineCRM.RabbitMQ_channel = nil
+	EngineCRM.InitRabbitMQ(rootsctuct.Global_settingsV)
+
+	return customer_map_json, nil
 
 }
 
