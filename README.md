@@ -21,6 +21,8 @@ Implemented the function of sending letters to the mail server
 Used gRPC to get and write data.
 ### RabbitMQ
 Implemented the function of sending changed and new customers in Queue
+### Consule
+Getting settings from Key\Value  
 ### GraphQL
 Search by customer ID, example below
 ```graphql

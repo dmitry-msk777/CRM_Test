@@ -41,6 +41,7 @@ type EngineCRM struct {
 	Cookie_CRM_map    map[string]rootsctuct.Cookie_CRM
 	TestChan          chan string
 	LoggerCRM         rootsctuct.LoggerCRM
+	//ConsulClient 		*consul.Client
 }
 
 func (EngineCRM *EngineCRM) SetSettings(Global_settings rootsctuct.Global_settings) {
