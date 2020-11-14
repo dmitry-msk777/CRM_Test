@@ -1,0 +1,19 @@
+language: go
+
+go:
+  - "1.11"
+  - tip
+
+install:
+  - go get -t ./...
+
+matrix:
+  allow_failures:
+    - go: tip
+  fast_finish: true
+
+script:
+  - make test-coverage
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
